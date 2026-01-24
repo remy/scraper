@@ -31,4 +31,4 @@ options:
     EXAMPLE_API_KEY: ''
 schema:
   scripts_dir: str
-  env_vars: dict(str)
+  env_vars: dict
