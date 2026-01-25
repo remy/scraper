@@ -1,9 +1,16 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 import multer from 'multer';
-import { existsSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  copyFileSync,
+  readFileSync,
+} from 'fs';
 import { promises as fsPromises } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
+import { format } from 'util';
 import { fileURLToPath } from 'url';
 import ejs from 'ejs';
 import 'renvy';
@@ -16,6 +23,7 @@ const SCRIPTS_DIR = process.env.SCRIPTS_DIR || TEMPLATE_SCRIPTS_DIR;
 const RESOLVED_SCRIPTS_DIR = resolve(SCRIPTS_DIR);
 const VIEWS_DIR = join(__dirname, 'views');
 const SCRIPT_EXTENSION = '.mjs';
+const LOGS_DIR = join(__dirname, 'logs');
 
 let now = Date.now();
 const { writeFile, readFile, unlink, rename } = fsPromises;
@@ -49,6 +57,9 @@ const ensureScriptsDir = () => {
 };
 
 ensureScriptsDir();
+if (!existsSync(LOGS_DIR)) {
+  mkdirSync(LOGS_DIR, { recursive: true });
+}
 
 const escapeHtml = (input = '') =>
   input
@@ -95,6 +106,8 @@ const sanitizeScriptName = (name = '') =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 100);
 
+const trimScriptExtension = (name = '') => name.replace(/\.[^.]+$/, '');
+
 const isSafeFileName = (fileName = '') => /^[a-zA-Z0-9._-]+$/.test(fileName);
 
 const getResolvedPath = (fileName = '') => {
@@ -109,6 +122,156 @@ const getResolvedPath = (fileName = '') => {
   }
 
   return { safeName, resolvedPath };
+};
+
+const toSerializable = (value) => {
+  const seen = new WeakSet();
+  const replacer = (_, val) => {
+    if (typeof val === 'bigint') {
+      return val.toString();
+    }
+    if (val instanceof Error) {
+      return {
+        name: val.name,
+        message: val.message,
+        stack: val.stack,
+      };
+    }
+    if (typeof val === 'function') {
+      return `[Function ${val.name || 'anonymous'}]`;
+    }
+    if (val && typeof val === 'object') {
+      if (seen.has(val)) {
+        return '[Circular]';
+      }
+      seen.add(val);
+    }
+    return val;
+  };
+
+  try {
+    return JSON.parse(JSON.stringify(value, replacer));
+  } catch (error) {
+    try {
+      return String(value);
+    } catch (fallbackError) {
+      return '[Unserializable value]';
+    }
+  }
+};
+
+const serializeError = (error) => {
+  if (!error) return null;
+  if (typeof error === 'string') return { message: error };
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  return toSerializable(error);
+};
+
+const captureConsoleLogs = () => {
+  const levels = ['log', 'info', 'warn', 'error'];
+  const original = {};
+  const logs = [];
+
+  levels.forEach((level) => {
+    original[level] = console[level];
+    console[level] = (...args) => {
+      const message = format(...args);
+      logs.push({
+        level,
+        message,
+        timestamp: new Date().toISOString(),
+      });
+      return original[level](...args);
+    };
+  });
+
+  const restore = () => {
+    levels.forEach((level) => {
+      if (original[level]) {
+        console[level] = original[level];
+      }
+    });
+  };
+
+  return { logs, restore };
+};
+
+const getLogPath = (scriptBaseName = '') => {
+  const safeName = sanitizeScriptName(scriptBaseName);
+  if (!safeName) {
+    throw new Error('Invalid log name');
+  }
+  return join(LOGS_DIR, `${safeName}.json`);
+};
+
+const writeEndpointLog = async (scriptBaseName = '', data = {}) => {
+  try {
+    const logPath = getLogPath(scriptBaseName);
+
+    // Read existing log to preserve lastError if this is a successful run
+    let lastError = null;
+    try {
+      const existingLog = JSON.parse(await readFile(logPath, 'utf8'));
+      if (existingLog.lastError) {
+        lastError = existingLog.lastError;
+      }
+    } catch {
+      // File doesn't exist or can't be parsed, no lastError to preserve
+    }
+
+    const payload = {
+      endpoint: sanitizeScriptName(scriptBaseName),
+      timestamp: new Date().toISOString(),
+      ...data,
+    };
+
+    // If this is a failed run, update lastError
+    if (data.success === false && data.error) {
+      payload.lastError = {
+        timestamp: payload.timestamp,
+        error: data.error,
+        durationMs: data.durationMs,
+        logs: data.logs,
+      };
+    } else if (lastError) {
+      // If successful, preserve the last error information
+      payload.lastError = lastError;
+    }
+
+    await writeFile(logPath, JSON.stringify(payload, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Unable to write endpoint log', error);
+  }
+};
+
+const readLatestLogs = () => {
+  if (!existsSync(LOGS_DIR)) {
+    return {};
+  }
+
+  const entries = {};
+  const files = readdirSync(LOGS_DIR, { withFileTypes: true }).filter(
+    (entry) => entry.isFile() && entry.name.endsWith('.json')
+  );
+
+  files.forEach((entry) => {
+    const filePath = join(LOGS_DIR, entry.name);
+    try {
+      const content = JSON.parse(readFileSync(filePath, 'utf8'));
+      const baseName = trimScriptExtension(entry.name);
+      entries[baseName] = content;
+    } catch (error) {
+      console.error('Unable to read log file', entry.name, error);
+    }
+  });
+
+  return entries;
 };
 
 const ensureRunExport = (content = '') => {
@@ -219,7 +382,53 @@ app.use('/reset', (req, res) => {
 });
 
 app.get('/scripts/list', (req, res) => {
-  res.json({ scripts: getScripts() });
+  const includeLogs =
+    req.query.includeLogs === '1' || req.query.includeLogs === 'true';
+  const payload = { scripts: getScripts() };
+
+  if (includeLogs) {
+    payload.logs = readLatestLogs();
+  }
+
+  res.json(payload);
+});
+
+app.get('/scripts/logs/:scriptName', (req, res) => {
+  const scriptBaseName = sanitizeScriptName(req.params.scriptName);
+  if (!scriptBaseName) {
+    return res.status(400).json({ error: 'Invalid script name' });
+  }
+
+  const logs = readLatestLogs();
+  const entry = logs[scriptBaseName];
+  if (!entry) {
+    return res.status(404).json({ error: 'Log not found' });
+  }
+
+  res.json({ log: entry });
+});
+
+app.get('/scripts/logs/:scriptName/error', (req, res) => {
+  const scriptBaseName = sanitizeScriptName(req.params.scriptName);
+  if (!scriptBaseName) {
+    return res.status(400).json({ error: 'Invalid script name' });
+  }
+
+  const logs = readLatestLogs();
+  const entry = logs[scriptBaseName];
+  if (!entry) {
+    return res.status(404).json({ error: 'Log not found' });
+  }
+
+  if (!entry.lastError) {
+    return res.status(404).json({ error: 'No error history found' });
+  }
+
+  res.json({
+    scriptName: scriptBaseName,
+    lastError: entry.lastError,
+    lastSuccess: entry.success ? entry.timestamp : null,
+  });
 });
 
 app.get('/scripts/content/:fileName', async (req, res) => {
@@ -244,11 +453,9 @@ app.post('/scripts/rename', async (req, res) => {
   try {
     const sanitizedNewName = sanitizeScriptName(newName);
     if (!sanitizedNewName) {
-      return res
-        .status(400)
-        .json({
-          error: 'New name must be alphanumeric with dashes or underscores.',
-        });
+      return res.status(400).json({
+        error: 'New name must be alphanumeric with dashes or underscores.',
+      });
     }
 
     const original = getResolvedPath(originalFileName);
@@ -400,27 +607,58 @@ app.post('/upload-text', async (req, res) => {
 
 // Middleware to dynamically route based on script files in 'scripts' folder
 app.use('/api/:scriptName', async (req, res) => {
-  const scriptName = req.params.scriptName;
-  const scriptPath = join(SCRIPTS_DIR, `${scriptName}${SCRIPT_EXTENSION}`);
+  const rawScriptName = req.params.scriptName;
+  let scriptPath = '';
+  let safeScriptName = '';
 
-  console.log(`req: /api/${scriptName}`);
+  try {
+    const { resolvedPath, safeName } = getResolvedPath(
+      `${rawScriptName}${SCRIPT_EXTENSION}`
+    );
+    scriptPath = resolvedPath;
+    safeScriptName = trimScriptExtension(safeName);
+  } catch (error) {
+    console.error('Invalid script request', error);
+    return res.status(400).json({ error: 'Invalid script name' });
+  }
 
-  // Check if the script exists
-  if (existsSync(scriptPath)) {
-    try {
-      // Dynamically import the script, forcing a fresh reload
-      const script = await import(scriptPath + `?cacheBust=${Math.random()}`);
+  console.log(`req: /api/${safeScriptName}`);
 
-      // Run the script and pass Puppeteer instance
-      const result = await script.run(req, res, browser);
-      console.log(`result: ${JSON.stringify(result)}`);
-      res.json(result);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Error executing script' });
-    }
-  } else {
-    res.status(404).json({ error: 'Script not found' });
+  if (!existsSync(scriptPath)) {
+    return res.status(404).json({ error: 'Script not found' });
+  }
+
+  const startTime = Date.now();
+  const { logs, restore } = captureConsoleLogs();
+
+  try {
+    const script = await import(scriptPath + `?cacheBust=${Math.random()}`);
+    const result = await script.run(req, res, browser);
+    const durationMs = Date.now() - startTime;
+
+    await writeEndpointLog(safeScriptName, {
+      success: true,
+      durationMs,
+      result: toSerializable(result),
+      logs,
+    });
+
+    console.log(`result: ${JSON.stringify(result)}`);
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    const durationMs = Date.now() - startTime;
+
+    await writeEndpointLog(safeScriptName, {
+      success: false,
+      durationMs,
+      error: serializeError(error),
+      logs,
+    });
+
+    res.status(500).json({ error: 'Error executing script' });
+  } finally {
+    restore();
   }
 });
 

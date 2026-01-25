@@ -37,59 +37,33 @@
             <button type="submit">Upload File</button>
           </form>
           <ul class="script-list" id="endpointList" data-api-base="<%= apiBasePath %>">
-            <% if (scripts.length> 0) { %>
-              <% scripts.forEach(item=> { %>
-                <% const scriptBase=item.replace(/\.[^.]+$/, '' ); %>
-                  <% const apiLink=apiBasePath + scriptBase; %>
-                    <li class="endpoint-row">
-                      <span class="script-name">
-                        <%= escapeHtml(item) %>
-                      </span>
-                    <li class="endpoint-row">
-                      <span class="script-name">
-                        <%= escapeHtml(item) %>
-                      </span>
-                      <div class="row-actions">
-                        <a class="api-link" href="<%= escapeHtml(apiLink) %>" target="_blank" rel="noopener">Call
-                          API</a>
-                        <button type="button" class="edit-button" data-action="edit"
-                          data-file="<%= escapeHtml(item) %>">Edit</button>
-                        <button type="button" class="rename-button" data-action="rename"
-                          data-file="<%= escapeHtml(item) %>">Rename</button>
-                        <button type="button" class="delete-button" data-action="delete"
-                          data-file="<%= escapeHtml(item) %>">Delete</button>
-                      </div>
-                    </li>
-                    <% }); %>
-                      <% } else { %>
-                        <li>No scripts found yet.</li>
-                        <% } %>
+            <li>Loading scripts...</li>
           </ul>
-    </section>
+        </section>
 
-    <div class="modal hidden" id="confirmModal" role="dialog" aria-modal="true">
-      <div class="modal-content">
-        <h3 id="confirmTitle">Confirm deletion</h3>
+        <div class="modal hidden" id="confirmModal" role="dialog" aria-modal="true">
+          <div class="modal-content">
+            <h3 id="confirmTitle">Confirm deletion</h3>
             <p id="confirmMessage">Are you sure?</p>
             <div class="modal-actions">
               <button type="button" class="secondary" id="cancelDeleteBtn">Cancel</button>
               <button type="button" class="danger" id="confirmDeleteBtn">Delete</button>
             </div>
-      </div>
-    </div>
-
-    <div class="modal hidden" id="renameModal" role="dialog" aria-modal="true">
-      <div class="modal-content">
-        <h3 id="renameTitle">Rename script</h3>
-        <p id="renameMessage">Update the file name (without extension).</p>
-        <label for="renameInput">New name</label>
-        <input type="text" id="renameInput" autocomplete="off" />
-        <div class="modal-actions">
-          <button type="button" class="secondary" id="cancelRenameBtn">Cancel</button>
-          <button type="button" id="confirmRenameBtn">Rename</button>
+          </div>
         </div>
-      </div>
-    </div>
+
+        <div class="modal hidden" id="renameModal" role="dialog" aria-modal="true">
+          <div class="modal-content">
+            <h3 id="renameTitle">Rename script</h3>
+            <p id="renameMessage">Update the file name (without extension).</p>
+            <label for="renameInput">New name</label>
+            <input type="text" id="renameInput" autocomplete="off" />
+            <div class="modal-actions">
+              <button type="button" class="secondary" id="cancelRenameBtn">Cancel</button>
+              <button type="button" id="confirmRenameBtn">Rename</button>
+            </div>
+          </div>
+        </div>
 
         <section class="panel editor-panel hidden" id="editorView">
           <h2>Create or Edit Script</h2>

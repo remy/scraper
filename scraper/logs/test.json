@@ -1,0 +1,8 @@
+{
+  "endpoint": "test",
+  "timestamp": "2026-01-25T12:16:29.257Z",
+  "success": true,
+  "durationMs": 258,
+  "result": "Example Domain",
+  "logs": []
+}

@@ -99,34 +99,48 @@
         const apiHref = makeApiLink(item);
         const safeItem = escapeHTML(item);
         const safeApiHref = escapeHTML(apiHref);
-        return `<li class="endpoint-row">
-          <span class="script-name"><a class="api-link" title="Cal API and view results" href="${safeApiHref}" target="_blank" rel="noopener">${safeItem}<img width="16" src="img/view.svg"></a></span>
-          <div class="row-actions">
-            <button type="button" class="edit-button" data-action="edit" data-file="${safeItem}"><img width="16" src="img/edit.svg"> Edit</button>
-            <button type="button" title="Rename endpoint" class="icon-button rename-button" data-action="rename" data-file="${safeItem}"><img width="16" src="img/rename.svg"></button>
-            <button type="button" class="icon-button delete-button" title="Delete script" data-action="delete" data-file="${safeItem}"><img width="16" src="img/delete.svg"></button>
-          </div>
-        </li>`;
-      })
-      .join('');
-  };
+        const baseName = item.replace(/\.[^.]+$/, '');
+        const log = latestLogs[baseName];
+        const statusClass = log ? (log.success ? 'success' : 'error') : 'empty';
+        const statusLabel = log
+          ? log.success
+            ? 'Success'
+            : 'Error'
+          : 'No recent run';
+        const timeLabel = formatTimestamp(log?.timestamp);
+        const durationLabel = log?.durationMs ? `${log.durationMs} ms` : '';
+        const logBody = escapeHTML(buildLogBody(log));
 
-  const renderEditorList = (items = []) => {
-    if (!scriptList) return;
-    if (!items.length) {
-      scriptList.innerHTML = '<li>No scripts found yet.</li>';
-      return;
-    }
-    scriptList.innerHTML = items
-      .map((item) => {
-        const apiHref = makeApiLink(item);
-        const safeItem = escapeHTML(item);
-        const safeApiHref = escapeHTML(apiHref);
-        return `<li>
-          <button type="button" class="script-button" data-file="${safeItem}">${safeItem}</button>
-          <a class="api-link" href="${safeApiHref}" target="_blank" rel="noopener">API</a>
-          <button type="button" class="rename-button" data-action="rename" data-file="${safeItem}">Rename</button>
-          <button type="button" class="delete-button" data-action="delete" data-file="${safeItem}">Delete</button>
+        return `<li class="endpoint-row">
+          <div class="endpoint-header">
+            <span class="script-name"><a class="api-link" title="Call API and view results" href="${safeApiHref}" target="_blank" rel="noopener">${safeItem}<img width="16" src="img/view.svg"></a></span>
+            <div class="row-actions">
+              <button type="button" class="edit-button" data-action="edit" data-file="${safeItem}"><img width="16" src="img/edit.svg"> Edit</button>
+              <button type="button" title="Rename endpoint" class="icon-button rename-button" data-action="rename" data-file="${safeItem}"><img width="16" src="img/rename.svg"></button>
+              <button type="button" title="Toggle log" class="icon-button log-toggle-button" data-action="toggle-log" data-file="${safeItem}"><img width="16" src="img/log.svg"></button>
+              <button type="button" class="icon-button delete-button" title="Delete script" data-action="delete" data-file="${safeItem}"><img width="16" src="img/delete.svg"></button>
+            </div>
+          </div>
+          <div class="endpoint-log ${statusClass} hidden">
+            <div class="endpoint-log-meta">
+              <span class="pill ${statusClass}">${escapeHTML(
+          statusLabel
+        )}</span>
+              ${
+                timeLabel
+                  ? `<span class="timestamp" title="Last run">${escapeHTML(
+                      timeLabel
+                    )}</span>`
+                  : ''
+              }
+              ${
+                durationLabel
+                  ? `<span class="duration">${escapeHTML(durationLabel)}</span>`
+                  : ''
+              }
+            </div>
+            <pre class="endpoint-log-body">${logBody}</pre>
+          </div>
         </li>`;
       })
       .join('');
@@ -135,6 +149,7 @@
   let currentFileName = '';
   let pendingDelete = null;
   let pendingRename = '';
+  let latestLogs = {};
 
   const ensureRunExport = (content = '') => {
     const pattern = /export\s+(async\s+)?function\s+run/;
@@ -178,9 +193,61 @@ ${indented}
     setStatus('Template inserted. Customize and save.');
   };
 
+  const stringifyValue = (value) => {
+    try {
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value, null, 2);
+    } catch (error) {
+      try {
+        return String(value);
+      } catch (fallbackError) {
+        return '[Unserializable value]';
+      }
+    }
+  };
+
+  const formatTimestamp = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString();
+  };
+
+  const buildLogBody = (log) => {
+    if (!log) return 'No recent execution yet.';
+
+    const lines = [];
+
+    if (log.success === false && log.error) {
+      const message = log.error.message || log.error;
+      lines.push(`Error: ${stringifyValue(message)}`);
+    }
+
+    if (log.result !== undefined) {
+      lines.push(`Result: ${stringifyValue(log.result)}`);
+    }
+
+    if (log.logs?.length) {
+      lines.push('Console logs:');
+      log.logs
+        .slice(-10)
+        .forEach((entry) =>
+          lines.push(
+            `[${entry.level}] ${entry.message || stringifyValue(entry)}`
+          )
+        );
+    }
+
+    if (!lines.length) {
+      return 'No details available.';
+    }
+
+    return lines.join('\n');
+  };
+
   const refreshScripts = async () => {
     try {
-      const response = await fetch('scripts/list');
+      const response = await fetch('scripts/list?includeLogs=1');
       if (!response.ok) {
         return;
       }
@@ -188,8 +255,8 @@ ${indented}
       if (!data?.scripts) {
         return;
       }
+      latestLogs = data.logs || {};
       renderEndpointList(data.scripts);
-      renderEditorList(data.scripts);
     } catch (error) {
       console.error(error);
     }
@@ -366,6 +433,13 @@ ${indented}
       }
     } else if (action === 'rename') {
       openRenameModal(fileName);
+    } else if (action === 'toggle-log') {
+      const logElement = button
+        .closest('.endpoint-row')
+        ?.querySelector('.endpoint-log');
+      if (logElement) {
+        logElement.classList.toggle('hidden');
+      }
     } else if (action === 'delete') {
       openDeleteModal(fileName);
     }
