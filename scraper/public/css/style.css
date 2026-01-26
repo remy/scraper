@@ -10,11 +10,7 @@ img {
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   margin: 0;
   line-height: 1.5;
   background: color-mix(in srgb, Canvas, transparent 0%);
@@ -502,6 +498,7 @@ ul.script-list li {
 .upload-inline {
   display: flex;
   flex-direction: column;
+  position: relative;
   justify-content: center;
   gap: 0.5rem 1rem;
   align-items: center;
