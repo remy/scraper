@@ -22,6 +22,12 @@ if [[ -f "${OPTIONS_FILE}" ]]; then
       fi
     done
   fi
+
+  mapfile -t NPM_MODULES < <(jq -r '.npm_modules // [] | .[]' "${OPTIONS_FILE}" 2>/dev/null || true)
+  if [[ ${#NPM_MODULES[@]} -gt 0 ]]; then
+    echo "Installing user npm modules: ${NPM_MODULES[*]}"
+    npm install --no-save "${NPM_MODULES[@]}"
+  fi
 fi
 
 export SCRIPTS_DIR="${RESOLVED_DIR}"

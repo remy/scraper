@@ -6,7 +6,8 @@ The repository now doubles as a Home Assistant add-on. To test it locally you ca
 
 1. Install **Scraper** from the add-on list.
 2. (Optional) Add `env_vars` key/value pairs (API keys, credentials, etc.). They are exported to the Node process as environment variables on startup. A sample `EXAMPLE_API_KEY` entry is provided—replace it or add more secrets as needed.
-3. (Optional) Adjust the `scripts_dir` option if you prefer saving uploads somewhere other than the default `/config/scripts` (for example `/share/scraper`).
+3. (Optional) Add npm package names under `npm_modules` if your scripts require extra dependencies. They are installed via `npm install --no-save` every time the add-on boots.
+4. (Optional) Adjust the `scripts_dir` option if you prefer saving uploads somewhere other than the default `/config/scripts` (for example `/share/scraper`).
 
 The add-on exposes an ingress-friendly Express UI as well as the existing `/api/<script>` HTTP endpoints.
 

@@ -20,7 +20,7 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 | `public/css/style.css` | Styling for light/dark modes, layout, modal, etc. |
 | `public/js/app.js` | Client-side logic: mode switching, CodeMirror editor, rename/delete modal, list refresh, etc. |
 | `config.yaml` / `build.yaml` | Home Assistant add-on metadata (name, ingress, env-vars, architecture, etc.). |
-| `run.sh` | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`. |
+| `run.sh` | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`, installs user `npm_modules`. |
 | `Dockerfile` | Node + Chromium + `run.sh`, optimized for HA base images. |
 | `scripts/*.mjs` | Example Puppeteer scripts (copied to `/config/scripts` on first run). |
 | `public/` | Static assets served by Express (CSS, JS, fonts). |
@@ -35,7 +35,7 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
    - Use `.devcontainer/devcontainer.json` (Home Assistant dev environment with Supervisor).
    - Alternatively, build add-on image and install locally.
 4. **Home Assistant integration**:
-   - `config.yaml` defines add-on metadata, ingress, options (e.g., `env_vars`, `scripts_dir`).
+   - `config.yaml` defines add-on metadata, ingress, options (e.g., `env_vars`, `npm_modules`, `scripts_dir`).
    - Add-on code expects `SCRIPTS_DIR` (defaults to `/config/scripts` in HA).
    - `env_vars` map to environment variables for storing secrets/keys (set through Supervisor UI).
 
@@ -85,6 +85,7 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 | --- | --- | --- |
 | `scripts_dir` | `/config/scripts` | Filesystem location of user scripts (mounted to `/addon_configs/<repo>_scraper/scripts`). |
 | `env_vars` | `{"EXAMPLE_API_KEY": ""}` | Key/value map injected into Node process. Update via Supervisor UI. |
+| `npm_modules` | `[]` | Extra npm packages to install at startup (run via `npm install --no-save`). |
 
 ### Environment variables
 - `SCRIPTS_DIR`: target script directory.

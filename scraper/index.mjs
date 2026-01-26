@@ -14,7 +14,6 @@ import { spawnSync } from 'child_process';
 import { format } from 'util';
 import { fileURLToPath, pathToFileURL } from 'url';
 import ejs from 'ejs';
-import 'renvy';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
