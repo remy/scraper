@@ -1,3 +1,9 @@
+## 1.3.3
+
+- Add reload buttons
+- Make navigation sticky
+- Bake cheerio as a core dep
+
 ## 1.3.2
 
 - Small fix that caused entire header to be clickable

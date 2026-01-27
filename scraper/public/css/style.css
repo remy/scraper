@@ -68,14 +68,22 @@ textarea {
 }
 
 .button,
-button {
-  padding: 0.5rem 1.25rem;
+button:not(.plain) {
   font-size: 1rem;
   cursor: pointer;
   border-radius: 0.5rem;
   border: none;
-  background: #2563eb;
-  color: #fff;
+
+  border: 1px solid color-mix(in srgb, CanvasText 5%, transparent);
+  background: color-mix(in srgb, CanvasText 15%, transparent);
+  color: inherit;
+  padding: 0.5rem 0.75rem;
+
+  &.cta {
+    padding: 0.5rem 1.25rem;
+    background: #2563eb;
+    color: #fff;
+  }
 
   display: flex;
   align-items: center;
@@ -89,6 +97,50 @@ button {
     background: color-mix(in srgb, #1e40af 75%, transparent);
   }
 }
+
+button.plain {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  font-weight: bold;
+  font-size: 0.9rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.script-button {
+  flex: 1;
+  text-align: left;
+  background: color-mix(in srgb, CanvasText 8%, transparent);
+  color: inherit;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+}
+.delete-button,
+.rename-button,
+.view-button,
+.log-toggle-button {
+  border: 1px solid color-mix(in srgb, CanvasText 5%, transparent);
+  background: color-mix(in srgb, CanvasText 15%, transparent);
+  color: inherit;
+  padding: 0.5rem 0.75rem;
+}
+
+.log-toggle-button.has-known-error {
+  border-color: color-mix(in srgb, #ef4444 70%, transparent);
+  outline: 2px solid color-mix(in srgb, #ef4444 55%, transparent);
+  outline-offset: 1px;
+}
+.edit-button {
+  img {
+    margin-right: 4px;
+  }
+}
+
 button.secondary {
   background: color-mix(in srgb, CanvasText 15%, transparent);
   color: CanvasText;
@@ -98,14 +150,35 @@ button.secondary {
   }
 }
 
+.nav-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.reload-button {
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.reload-button img {
+  width: 24px;
+  height: 24px;
+}
+.reload-button:hover {
+  text-decoration: none;
+  transition: transform 0.2s ease-in-out;
+  transform: rotate(360deg);
+}
 .mode-toggle {
   display: inline-flex;
   border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
   border-radius: 999px;
-  margin-bottom: 1.5rem;
   overflow: hidden;
 }
-.mode-button {
+button.mode-button {
   border: none;
   background: transparent;
   padding: 0.4rem 1.5rem;
@@ -116,7 +189,7 @@ button.secondary {
     background: color-mix(in srgb, CanvasText 25%, transparent);
   }
 }
-.mode-button.active {
+button.mode-button.active {
   background: #2563eb;
   color: #fff;
 }
@@ -139,12 +212,21 @@ ul.script-list li {
 }
 .endpoint-row {
   flex-wrap: wrap;
-  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-  border-radius: 0.5rem;
+  /* border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); */
+  /* border-radius: 0.5rem; */
   padding: 0.5rem 0.75rem;
   flex-direction: column;
   align-items: stretch;
   gap: 0.5rem;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, CanvasText 2%, transparent);
+    border-radius: 0.5rem;
+  }
 }
 .script-name {
   font-weight: 600;
@@ -172,33 +254,6 @@ ul.script-list li {
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
-}
-.script-button {
-  flex: 1;
-  text-align: left;
-  background: color-mix(in srgb, CanvasText 8%, transparent);
-  color: inherit;
-  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
-}
-.delete-button,
-.rename-button,
-.view-button,
-.log-toggle-button {
-  border: 1px solid color-mix(in srgb, CanvasText 5%, transparent);
-  background: color-mix(in srgb, CanvasText 15%, transparent);
-  color: inherit;
-  padding: 0.5rem 0.75rem;
-}
-
-.log-toggle-button.has-known-error {
-  border-color: color-mix(in srgb, #ef4444 70%, transparent);
-  outline: 2px solid color-mix(in srgb, #ef4444 55%, transparent);
-  outline-offset: 1px;
-}
-.edit-button {
-  img {
-    margin-right: 4px;
-  }
 }
 
 .api-link {

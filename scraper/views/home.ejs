@@ -18,9 +18,14 @@
       </p>
       <% } %>
 
-        <div class="mode-toggle">
-          <button type="button" class="mode-button active" data-mode="endpoints">Endpoints</button>
-          <button type="button" class="mode-button" data-mode="editor">Editor</button>
+        <div class="nav-controls">
+          <button type="button" class="plain reload-button" id="reloadBtn" title="Reload">
+            <img width="16" height="16" src="img/reload.svg" alt="" aria-hidden="true" />
+          </button>
+          <div class="mode-toggle">
+            <button type="button" class="mode-button active" data-mode="endpoints">Endpoints</button>
+            <button type="button" class="mode-button" data-mode="editor">Editor</button>
+          </div>
         </div>
 
         <section class="panel" id="endpointsView">
@@ -37,7 +42,7 @@
             </form>
           </header>
           <ul class="script-list" id="endpointList" data-api-base="<%= apiBasePath %>">
-            <li>Loading scripts...</li>
+            <li class="endpoint-row">Loading scripts...</li>
           </ul>
         </section>
 

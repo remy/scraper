@@ -14,6 +14,7 @@
   const endpointsView = document.getElementById('endpointsView');
   const editorView = document.getElementById('editorView');
   const modeButtons = document.querySelectorAll('.mode-button');
+  const reloadBtn = document.getElementById('reloadBtn');
   const confirmModal = document.getElementById('confirmModal');
   const confirmTitle = document.getElementById('confirmTitle');
   const confirmMessage = document.getElementById('confirmMessage');
@@ -211,24 +212,63 @@
     }
   };
 
-  const setMode = (mode) => {
+  const VALID_MODES = new Set(['endpoints', 'editor']);
+  const getModeFromHash = () => {
+    const raw = window.location.hash.replace('#', '').trim();
+    return VALID_MODES.has(raw) ? raw : '';
+  };
+  const resolveInitialMode = () => {
+    const hashMode = getModeFromHash();
+    if (hashMode) return hashMode;
+    const stateMode = window.history?.state?.mode;
+    return VALID_MODES.has(stateMode) ? stateMode : 'endpoints';
+  };
+  let currentMode = 'endpoints';
+
+  const syncHistory = (mode, { replace = false } = {}) => {
+    if (!window.history?.pushState) return;
+    const url = new URL(window.location.href);
+    url.hash = mode === 'endpoints' ? '' : `#${mode}`;
+    const state = { ...(window.history.state || {}), mode };
+    if (replace) {
+      window.history.replaceState(state, '', url);
+    } else {
+      window.history.pushState(state, '', url);
+    }
+  };
+
+  const setMode = (
+    mode,
+    { updateHistory = false, replaceHistory = false } = {}
+  ) => {
+    if (!VALID_MODES.has(mode)) return;
+    if (currentMode === mode) {
+      if (updateHistory) {
+        syncHistory(mode, { replace: replaceHistory });
+      }
+      return;
+    }
     modeButtons.forEach((button) => {
       const isActive = button.dataset.mode === mode;
       button.classList.toggle('active', isActive);
     });
     endpointsView?.classList.toggle('hidden', mode !== 'endpoints');
     editorView?.classList.toggle('hidden', mode !== 'editor');
+    currentMode = mode;
+    if (updateHistory) {
+      syncHistory(mode, { replace: replaceHistory });
+    }
   };
 
   modeButtons.forEach((button) => {
     button.addEventListener('click', () => {
       const mode = button.dataset.mode;
       if (mode) {
-        setMode(mode);
+        setMode(mode, { updateHistory: true });
       }
     });
   });
-  setMode('endpoints');
+  setMode(resolveInitialMode(), { updateHistory: true, replaceHistory: true });
   confirmModal?.classList.add('hidden');
 
   const makeApiLink = (fileName = '') =>
@@ -259,20 +299,22 @@
         const lastRunText = relativeLastRun || 'Never';
         const lastRunTitle = timeLabel || relativeLastRun || 'No runs yet';
         const logBody = escapeHTML(buildLogBody(log));
-        const lastErrorTimestamp = log?.lastError?.timestamp || '';
+        const lastErrorTimestamp = log?.success === false ? log?.timestamp : '';
         const baseNameSafe = escapeHTML(baseName);
-        const hasKnownError = hasUnseenError(baseName, lastErrorTimestamp);
+        const hasKnownError =
+          log?.success === false &&
+          hasUnseenError(baseName, lastErrorTimestamp);
         const logButtonClasses = `icon-button log-toggle-button${
           hasKnownError ? ' has-known-error' : ''
         }`;
 
         return `<li class="endpoint-row">
           <div class="endpoint-header">
-            <span class="script-name"><a class="api-link" title="Call API and view results" href="${safeApiHref}" target="_blank" rel="noopener">${safeItem}</a><span class="last-run-time" title="${escapeHTML(
+            <span class="script-name"><button class="plain edit-button" data-action="edit" data-file="${safeItem}">${safeItem}</button><span class="last-run-time" title="${escapeHTML(
           lastRunTitle
         )}">${escapeHTML(lastRunText)}</span></span>
             <div class="row-actions">
-              <button type="button" class="edit-button" data-action="edit" data-file="${safeItem}"><img width="16" src="img/edit.svg"> Edit</button>
+              <button type="button" class="edit-button cta" data-action="edit" data-file="${safeItem}">Edit</button>
               <a title="Call API" href="${safeApiHref}" target="_blank" rel="noopener" class="button icon-button view-button" data-action="view" data-file="${safeItem}"><img width="16" src="img/view.svg"></a>
               <button type="button" title="Rename endpoint" class="icon-button rename-button" data-action="rename" data-file="${safeItem}"><img width="16" src="img/rename.svg"></button>
               <button type="button" title="Toggle log" class="${logButtonClasses}" data-action="toggle-log" data-file="${safeItem}" data-script-base="${baseNameSafe}" data-last-error-ts="${escapeHTML(
@@ -508,9 +550,12 @@ ${indented}
 
     const logButton = row.querySelector('.log-toggle-button');
     if (logButton) {
-      const lastErrorTimestamp = log?.lastError?.timestamp || '';
+      const lastErrorTimestamp = log?.success === false ? log?.timestamp : '';
       logButton.dataset.lastErrorTs = lastErrorTimestamp;
-      if (hasUnseenError(baseName, lastErrorTimestamp)) {
+      if (
+        log?.success === false &&
+        hasUnseenError(baseName, lastErrorTimestamp)
+      ) {
         logButton.classList.add('has-known-error');
       } else {
         logButton.classList.remove('has-known-error');
@@ -910,7 +955,7 @@ ${indented}
 
     if (action === 'edit') {
       if (actionElement.dataset.file) {
-        setMode('editor');
+        setMode('editor', { updateHistory: true });
         loadScript(fileName);
       }
     } else if (action === 'rename') {
@@ -968,6 +1013,19 @@ ${indented}
     if ((event.key || '').toLowerCase() !== 's') return;
     event.preventDefault();
     requestScriptSave();
+  });
+
+  window.addEventListener('popstate', (event) => {
+    const stateMode = event.state?.mode;
+    const hashMode = getModeFromHash();
+    const nextMode = VALID_MODES.has(stateMode)
+      ? stateMode
+      : hashMode || 'endpoints';
+    setMode(nextMode);
+  });
+
+  reloadBtn?.addEventListener('click', () => {
+    window.location.reload();
   });
 
   scriptForm?.addEventListener('submit', async (event) => {
