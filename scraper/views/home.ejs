@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <title>Scraper Scripts</title>
     <base href="<%= baseHref %>" />
-    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/style.css?v=<%= appVersion %>" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css" />
     <link rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css" />
@@ -138,7 +138,7 @@
         <script type="template" id="templateScript">
             <%- scriptTemplate %>
         </script>
-        <script src="js/app.js" defer></script>
+        <script src="js/app.js?v=<%= appVersion %>" defer></script>
   </body>
 
 </html>

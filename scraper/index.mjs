@@ -2,6 +2,7 @@ import express from 'express';
 import puppeteer from 'puppeteer';
 import multer from 'multer';
 import * as cheerio from 'cheerio';
+import yaml from 'js-yaml';
 import {
   existsSync,
   mkdirSync,
@@ -25,6 +26,23 @@ const RESOLVED_SCRIPTS_DIR = resolve(SCRIPTS_DIR);
 const VIEWS_DIR = join(__dirname, 'views');
 const SCRIPT_EXTENSION = '.mjs';
 const LOGS_DIR = join(__dirname, 'logs');
+
+// Read version from config.yaml for cache busting
+let APP_VERSION = '1.0.0';
+if (process.env.NODE_ENV === 'development') {
+  // In development, use a random number for cache busting on every reload
+  APP_VERSION = Math.random().toString(36).substring(2, 11);
+} else {
+  // In production, use version from config.yaml
+  try {
+    const configPath = join(__dirname, 'config.yaml');
+    const configContent = readFileSync(configPath, 'utf8');
+    const config = yaml.load(configContent);
+    APP_VERSION = config?.version || '1.0.0';
+  } catch (error) {
+    console.warn('Could not read version from config.yaml:', error.message);
+  }
+}
 
 let now = Date.now();
 const { writeFile, readFile, unlink, rename } = fsPromises;
@@ -121,6 +139,7 @@ const renderHomePage = async (req, message = '') => {
     apiBasePath,
     scriptTemplate: scriptTemplate.replace(/`/g, '\\`'),
     escapeHtml,
+    appVersion: APP_VERSION,
   });
 
   return html;

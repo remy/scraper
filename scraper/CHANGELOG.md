@@ -1,3 +1,8 @@
+## 2.0.1
+
+- **Fix**: Correct auto-inserted function signature to use new context object format (`request`, `response`, `browser`, `cheerio`)
+- Add cache busting with version query parameters on CSS and JS assets
+
 ## 2.0.0
 
 **BREAKING CHANGE**: Updated handler function signature from `(req, res, browser)` to `(context)` object.

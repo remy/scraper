@@ -387,7 +387,8 @@
       .map((line) => '  ' + line)
       .join('\n');
 
-    return `export default async function handler(req, res, browser) {
+    return `export default async function handler(context) {
+  const { request, response, browser, cheerio } = context;
 ${indented}
 }`;
   };
