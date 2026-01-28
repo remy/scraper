@@ -1,8 +1,18 @@
 * {
   box-sizing: border-box;
 }
+
 :root {
   color-scheme: light dark;
+  --c-link: #135dff;
+
+  @media (prefers-color-scheme: light) {
+    --c-link: #135dff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    --c-link: #437efe;
+  }
 }
 
 img {
@@ -16,6 +26,7 @@ body {
   background: color-mix(in srgb, Canvas, transparent 0%);
   color: CanvasText;
   padding: 1rem;
+
   @media (min-width: 600px) {
     padding: 2rem;
   }
@@ -29,12 +40,7 @@ h2 {
   margin-top: 0rem;
   margin-bottom: 1rem;
 }
-.layout {
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  margin-bottom: 1.5rem;
-}
+
 .panel {
   @media (min-width: 600px) {
     border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
@@ -44,11 +50,13 @@ h2 {
     box-shadow: 0 10px 25px color-mix(in srgb, CanvasText 8%, transparent);
   }
 }
+
 label {
   display: block;
   font-weight: 600;
   margin-top: 1rem;
 }
+
 input[type='text'],
 textarea,
 select {
@@ -61,6 +69,7 @@ select {
   background: color-mix(in srgb, Canvas, CanvasText 5%);
   color: inherit;
 }
+
 textarea {
   min-height: 320px;
   resize: vertical;
@@ -72,21 +81,18 @@ button:not(.plain) {
   font-size: 1rem;
   cursor: pointer;
   border-radius: 0.5rem;
-  border: none;
-
   border: 1px solid color-mix(in srgb, CanvasText 5%, transparent);
   background: color-mix(in srgb, CanvasText 15%, transparent);
   color: inherit;
   padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
 
   &.cta {
     padding: 0.5rem 1.25rem;
-    background: #2563eb;
+    background: var(--c-link);
     color: #fff;
   }
-
-  display: flex;
-  align-items: center;
 
   img {
     display: inline-block;
@@ -113,13 +119,6 @@ button.plain {
   }
 }
 
-.script-button {
-  flex: 1;
-  text-align: left;
-  background: color-mix(in srgb, CanvasText 8%, transparent);
-  color: inherit;
-  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
-}
 .delete-button,
 .rename-button,
 .view-button,
@@ -128,13 +127,14 @@ button.plain {
   background: color-mix(in srgb, CanvasText 15%, transparent);
   color: inherit;
   padding: 0.5rem 0.75rem;
+
+  &.has-known-error {
+    border-color: color-mix(in srgb, #ef4444 70%, transparent);
+    outline: 2px solid color-mix(in srgb, #ef4444 55%, transparent);
+    outline-offset: 1px;
+  }
 }
 
-.log-toggle-button.has-known-error {
-  border-color: color-mix(in srgb, #ef4444 70%, transparent);
-  outline: 2px solid color-mix(in srgb, #ef4444 55%, transparent);
-  outline-offset: 1px;
-}
 .edit-button {
   img {
     margin-right: 4px;
@@ -156,46 +156,75 @@ button.secondary {
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
+
 .reload-button {
   padding: 0.35rem 0.55rem;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-.reload-button img {
-  width: 24px;
-  height: 24px;
-}
-.reload-button:hover {
   text-decoration: none;
   transition: transform 0.2s ease-in-out;
-  transform: rotate(360deg);
+
+  img {
+    width: 24px;
+    height: 24px;
+  }
+
+  &:hover {
+    transform: rotate(360deg);
+  }
 }
+
 .mode-toggle {
   display: inline-flex;
   border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
   border-radius: 999px;
   overflow: hidden;
 }
-button.mode-button {
+
+.mode-button {
   border: none;
   background: transparent;
-  padding: 0.4rem 1.5rem;
+  padding: 0.5rem 1.75rem;
   cursor: pointer;
   color: CanvasText;
+  flex: 1;
+  font-size: 0.95rem;
 
   &:hover {
     background: color-mix(in srgb, CanvasText 25%, transparent);
   }
+
+  &.active {
+    background: var(--c-link);
+    color: #fff;
+  }
 }
-button.mode-button.active {
-  background: #2563eb;
-  color: #fff;
+
+button.mode-button {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 1.75rem;
+  cursor: pointer;
+  color: CanvasText;
+  flex: 1;
+  font-size: 0.95rem;
+
+  &:hover {
+    background: color-mix(in srgb, CanvasText 25%, transparent);
+  }
+
+  &.active {
+    background: var(--c-link);
+    color: #fff;
+  }
 }
+
 .hidden {
   display: none;
 }
+
 ul.script-list {
   list-style: none;
   padding: 0;
@@ -203,17 +232,17 @@ ul.script-list {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
 }
-ul.script-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
+
 .endpoint-row {
   flex-wrap: wrap;
-  /* border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent); */
-  /* border-radius: 0.5rem; */
   padding: 0.5rem 0.75rem;
   flex-direction: column;
   align-items: stretch;
@@ -228,6 +257,7 @@ ul.script-list li {
     border-radius: 0.5rem;
   }
 }
+
 .script-name {
   font-weight: 600;
   word-break: break-all;
@@ -236,11 +266,27 @@ ul.script-list li {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+.edit-link {
+  color: var(--c-link);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus {
+    outline: 2px solid var(--c-link);
+    outline-offset: 2px;
+  }
+}
+
 .last-run-time {
   font-weight: 400;
   font-size: 0.85rem;
   color: color-mix(in srgb, CanvasText 65%, transparent);
 }
+
 .endpoint-header {
   width: 100%;
   display: flex;
@@ -249,6 +295,7 @@ ul.script-list li {
   gap: 0.75rem;
   flex-wrap: wrap;
 }
+
 .row-actions {
   display: flex;
   gap: 0.5rem;
@@ -256,17 +303,6 @@ ul.script-list li {
   align-items: center;
 }
 
-.api-link {
-  text-decoration: none;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  color: CanvasText;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
 .message {
   background: color-mix(in srgb, #10b981 15%, transparent);
   border: 1px solid #10b981;
@@ -275,15 +311,18 @@ ul.script-list li {
   border-radius: 0.5rem;
   margin-bottom: 1rem;
 }
+
 .editor-actions {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
   margin-top: 20px;
 }
+
 .editor-log-actions {
   margin: 0 0 0.5rem;
 }
+
 .editor-grid {
   display: grid;
   grid-template-columns: minmax(240px, 1fr) minmax(260px, 320px);
@@ -294,12 +333,8 @@ ul.script-list li {
     'tip log';
   gap: 1rem;
   grid-auto-rows: min-content;
-}
-.editor-grid-item {
-  min-width: 0;
-}
-@media (max-width: 720px) {
-  .editor-grid {
+
+  @media (max-width: 720px) {
     grid-template-columns: 1fr;
     grid-template-areas:
       'name'
@@ -309,6 +344,11 @@ ul.script-list li {
       'tip';
   }
 }
+
+.editor-grid-item {
+  min-width: 0;
+}
+
 .script-name-area {
   grid-area: name;
   display: flex;
@@ -320,12 +360,14 @@ ul.script-list li {
     white-space: nowrap;
     display: inline-block;
   }
+
   input {
     width: 100%;
     margin: 0;
     background: Canvas;
   }
 }
+
 .editor-log-info {
   grid-area: log;
   border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
@@ -337,64 +379,117 @@ ul.script-list li {
   &:hover {
     background: Canvas;
   }
+
+  &.dimmed {
+    opacity: 0.55;
+  }
 }
-.editor-log-info.dimmed {
-  opacity: 0.55;
-}
+
 .editor-log-placeholder {
   font-size: 0.9rem;
   color: color-mix(in srgb, CanvasText 65%, transparent);
   margin-bottom: 0.5rem;
 }
+
 .editor-log-details {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-.editor-log-meta .log-time {
-  font-size: 0.85rem;
-  color: color-mix(in srgb, CanvasText 65%, transparent);
+
+.editor-log-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+
+  .log-time {
+    font-size: 0.85rem;
+    color: color-mix(in srgb, CanvasText 65%, transparent);
+  }
 }
+
 .editor-content-area {
   grid-area: content;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
+
 .editor-controls {
   grid-area: controls;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
+
 .editor-tip {
   grid-area: tip;
+
+  .note {
+    margin-top: 0;
+  }
 }
-.editor-tip .note {
-  margin-top: 0;
-}
+
 .status {
   margin-top: 0.5rem;
   min-height: 1.25rem;
   font-size: 0.95rem;
+
+  &.error {
+    color: #ef4444;
+  }
+
+  &.success {
+    color: #22c55e;
+  }
 }
-.status.error {
-  color: #ef4444;
-}
-.status.success {
-  color: #22c55e;
-}
+
 .note {
   font-size: 0.9rem;
   color: color-mix(in srgb, CanvasText 65%, transparent);
   margin-top: 0.75rem;
+
+  code {
+    font-family: 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
+  }
 }
-.note code {
-  font-family: 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
+
+.help-section {
+  background: color-mix(in srgb, Canvas, CanvasText 2%);
+  border-left: 3px solid color-mix(in srgb, CanvasText 20%, transparent);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0 1.5rem 0;
+  border-radius: 0.35rem;
+  font-size: 0.9rem;
+
+  p {
+    margin: 0.5rem 0;
+  }
+
+  a {
+    color: var(--c-link);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  code {
+    font-family: 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
+    background: color-mix(in srgb, Canvas, CanvasText 5%);
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+    font-size: 0.85em;
+  }
+
+  &.hidden {
+    display: none;
+  }
 }
-.preview {
-  margin-top: 1.5rem;
-}
+
 .modal {
   position: fixed;
   inset: 0;
@@ -403,7 +498,12 @@ ul.script-list li {
   align-items: center;
   justify-content: center;
   z-index: 50;
+
+  &.hidden {
+    display: none;
+  }
 }
+
 .modal-content {
   background: color-mix(in srgb, Canvas, CanvasText 5%);
   border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
@@ -412,28 +512,19 @@ ul.script-list li {
   width: min(90vw, 420px);
   box-shadow: 0 20px 50px color-mix(in srgb, CanvasText 20%, transparent);
 }
-.modal.hidden {
-  display: none;
-}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1.5rem;
 }
+
 .danger {
   background: #dc2626;
   color: #fff;
 }
-.code-view {
-  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
-  border-radius: 0.5rem;
-  padding: 1rem;
-  background: color-mix(in srgb, Canvas, CanvasText 4%);
-  max-height: 420px;
-  overflow: auto;
-  font-family: 'SFMono-Regular', Consolas, Menlo, Monaco, monospace;
-}
+
 .CodeMirror {
   border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
   border-radius: 0.5rem;
@@ -447,23 +538,14 @@ ul.script-list li {
   background: color-mix(in srgb, Canvas, CanvasText 4%);
   border-radius: 0.5rem;
   padding: 0.65rem 0.75rem;
-}
 
-.endpoint-log.success {
-  border-color: color-mix(in srgb, #16a34a 40%, Canvas);
-}
+  &.success {
+    border-color: color-mix(in srgb, #16a34a 40%, Canvas);
+  }
 
-.endpoint-log.error {
-  border-color: color-mix(in srgb, #ef4444 55%, Canvas);
-}
-
-.endpoint-log-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.35rem;
-  font-size: 0.9rem;
+  &.error {
+    border-color: color-mix(in srgb, #ef4444 55%, Canvas);
+  }
 }
 
 .pill {
@@ -471,20 +553,20 @@ ul.script-list li {
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
   font-size: 0.85rem;
-}
 
-.pill.success {
-  background: color-mix(in srgb, #16a34a 22%, transparent);
-  border-color: color-mix(in srgb, #16a34a 70%, transparent);
-}
+  &.success {
+    background: color-mix(in srgb, #16a34a 22%, transparent);
+    border-color: color-mix(in srgb, #16a34a 70%, transparent);
+  }
 
-.pill.error {
-  background: color-mix(in srgb, #ef4444 18%, transparent);
-  border-color: color-mix(in srgb, #ef4444 70%, transparent);
-}
+  &.error {
+    background: color-mix(in srgb, #ef4444 18%, transparent);
+    border-color: color-mix(in srgb, #ef4444 70%, transparent);
+  }
 
-.pill.empty {
-  background: color-mix(in srgb, CanvasText 8%, transparent);
+  &.empty {
+    background: color-mix(in srgb, CanvasText 8%, transparent);
+  }
 }
 
 .endpoint-log-body {
@@ -506,15 +588,15 @@ ul.script-list li {
   font-size: 0.8rem;
   color: color-mix(in srgb, CanvasText 65%, transparent);
   margin: 0 0 0.4rem;
-}
 
-.endpoint-log-spinner .spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid color-mix(in srgb, CanvasText 30%, transparent);
-  border-top-color: color-mix(in srgb, CanvasText 70%, transparent);
-  border-radius: 999px;
-  animation: endpoint-spin 0.8s linear infinite;
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid color-mix(in srgb, CanvasText 30%, transparent);
+    border-top-color: color-mix(in srgb, CanvasText 70%, transparent);
+    border-radius: 999px;
+    animation: endpoint-spin 0.8s linear infinite;
+  }
 }
 
 @keyframes endpoint-spin {
@@ -539,14 +621,16 @@ ul.script-list li {
   }
 }
 
-#endpointsView header {
-  position: relative;
-  display: flex;
-  gap: 12px;
-  margin-bottom: 1rem;
+#endpointsView {
+  header {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 1rem;
 
-  & > :first-child {
-    flex: 1;
+    & > :first-child {
+      flex: 1;
+    }
   }
 }
 
@@ -560,25 +644,24 @@ ul.script-list li {
   border: 2px dashed color-mix(in srgb, CanvasText 20%, transparent);
   border-radius: 0.5rem;
   padding: 1rem;
+
   &:hover {
-    /* mix with blue */
-    border-color: color-mix(in srgb, #2563eb 80%, transparent);
+    border-color: color-mix(in srgb, var(--c-link) 80%, transparent);
   }
-}
 
-.upload-inline label {
-  /* padding: 0.75rem 1rem; */
-  margin: 0;
-  cursor: pointer;
-  display: block;
-}
+  label {
+    margin: 0;
+    cursor: pointer;
+    display: block;
+  }
 
-.upload-inline button {
-  margin: 0;
-  text-align: center;
-  display: block;
-}
+  button {
+    margin: 0;
+    text-align: center;
+    display: block;
+  }
 
-.upload-inline input:invalid ~ button {
-  display: none;
+  input:invalid ~ button {
+    display: none;
+  }
 }

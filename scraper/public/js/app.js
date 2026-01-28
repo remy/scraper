@@ -13,6 +13,7 @@
   const endpointList = document.getElementById('endpointList');
   const endpointsView = document.getElementById('endpointsView');
   const editorView = document.getElementById('editorView');
+  const helpSection = document.getElementById('helpSection');
   const modeButtons = document.querySelectorAll('.mode-button');
   const reloadBtn = document.getElementById('reloadBtn');
   const confirmModal = document.getElementById('confirmModal');
@@ -254,6 +255,7 @@
     });
     endpointsView?.classList.toggle('hidden', mode !== 'endpoints');
     editorView?.classList.toggle('hidden', mode !== 'editor');
+    helpSection?.classList.toggle('hidden', mode !== 'endpoints');
     currentMode = mode;
     if (updateHistory) {
       syncHistory(mode, { replace: replaceHistory });
@@ -310,7 +312,7 @@
 
         return `<li class="endpoint-row">
           <div class="endpoint-header">
-            <span class="script-name"><button class="plain edit-button" data-action="edit" data-file="${safeItem}">${safeItem}</button><span class="last-run-time" title="${escapeHTML(
+            <span class="script-name"><a href="${safeApiHref}" class="plain edit-link" data-action="edit-link" data-file="${safeItem}">${safeItem}</a><span class="last-run-time" title="${escapeHTML(
           lastRunTitle
         )}">${escapeHTML(lastRunText)}</span></span>
             <div class="row-actions">
@@ -953,7 +955,21 @@ ${indented}
     const action = actionElement.dataset.action;
     if (!fileName || !action) return;
 
-    if (action === 'edit') {
+    if (action === 'edit-link') {
+      // Check for modifier keys (shift, ctrl/cmd) or non-left-click to allow default link behavior
+      if (
+        event.shiftKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.button !== 0
+      ) {
+        return; // Let default link behavior handle it
+      }
+      // Normal left-click: edit the script
+      event.preventDefault();
+      setMode('editor', { updateHistory: true });
+      loadScript(fileName);
+    } else if (action === 'edit') {
       if (actionElement.dataset.file) {
         setMode('editor', { updateHistory: true });
         loadScript(fileName);

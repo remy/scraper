@@ -7,24 +7,24 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 ## Project Purpose
 - Provide a UI and API for uploading, editing, and executing custom Puppeteer scripts inside Home Assistant.
 - Scripts live under `/config/scripts` (maps to `/addon_configs/<repo>_scraper/scripts` in HA).
-- `/api/<script>` dynamically loads `<script>.mjs`, calls its default export (an async function receiving `req, res, browser`) and returns JSON.
-- UI runs inside Home Assistant’s ingress (so routing accommodates `X-Ingress-Path`).
+- `/api/<script>` dynamically loads `<script>.mjs`, calls its default export (an async function receiving a `context` object with `{ request, response, browser, cheerio }`) and returns JSON.
+- UI runs inside Home Assistant's ingress (so routing accommodates `X-Ingress-Path`).
 
 ---
 
 ## Key Components
-| Path | Description |
-| --- | --- |
-| `index.mjs` | Express application: ingress handling, CodeMirror UI template, script CRUD endpoints, Puppeteer runner. |
-| `views/home.ejs` | HTML template rendered at `/`. References static CSS/JS and includes template data. |
-| `public/css/style.css` | Styling for light/dark modes, layout, modal, etc. |
-| `public/js/app.js` | Client-side logic: mode switching, CodeMirror editor, rename/delete modal, list refresh, etc. |
-| `config.yaml` / `build.yaml` | Home Assistant add-on metadata (name, ingress, env-vars, architecture, etc.). |
-| `run.sh` | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`, installs user `npm_modules`. |
-| `Dockerfile` | Node + Chromium + `run.sh`, optimized for HA base images. |
-| `scripts/*.mjs` | Example Puppeteer scripts (copied to `/config/scripts` on first run). |
-| `public/` | Static assets served by Express (CSS, JS, fonts). |
-| `translations/` | Supervisor UI translations (configuration options, port descriptions). |
+| Path                         | Description                                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `index.mjs`                  | Express application: ingress handling, CodeMirror UI template, script CRUD endpoints, Puppeteer runner.               |
+| `views/home.ejs`             | HTML template rendered at `/`. References static CSS/JS and includes template data.                                   |
+| `public/css/style.css`       | Styling for light/dark modes, layout, modal, etc.                                                                     |
+| `public/js/app.js`           | Client-side logic: mode switching, CodeMirror editor, rename/delete modal, list refresh, etc.                         |
+| `config.yaml` / `build.yaml` | Home Assistant add-on metadata (name, ingress, env-vars, architecture, etc.).                                         |
+| `run.sh`                     | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`, installs user `npm_modules`. |
+| `Dockerfile`                 | Node + Chromium + `run.sh`, optimized for HA base images.                                                             |
+| `scripts/*.mjs`              | Example Puppeteer scripts (copied to `/config/scripts` on first run).                                                 |
+| `public/`                    | Static assets served by Express (CSS, JS, fonts).                                                                     |
+| `translations/`              | Supervisor UI translations (configuration options, port descriptions).                                                |
 
 ---
 
@@ -60,17 +60,17 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 ---
 
 ## API / Endpoints
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/` | GET | Renders UI (`home.ejs` + static CSS/JS). |
-| `/scripts/list` | GET | Returns `{ scripts: [...] }`. |
-| `/scripts/content/:file` | GET | Returns `{ fileName, content }`. |
-| `/scripts/save` | POST | Body: `{ fileName?, scriptName, scriptContent }`. Always writes `.mjs` files (wraps a default export). |
-| `/scripts/rename` | POST | Body: `{ originalFileName, newName }`. Renames file, enforcing a `.mjs` extension. |
-| `/scripts/:fileName` | DELETE | Removes script. |
-| `/upload-file` | POST (multipart) | Upload script file. |
-| `/upload-text` | POST (form) | Legacy form handler for text-based script creation. |
-| `/api/:script` | GET | Executes `<script>.mjs` default export and returns JSON. (Puppeteer browser is launched at startup.) |
+| Endpoint                 | Method           | Description                                                                                            |
+| ------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `/`                      | GET              | Renders UI (`home.ejs` + static CSS/JS).                                                               |
+| `/scripts/list`          | GET              | Returns `{ scripts: [...] }`.                                                                          |
+| `/scripts/content/:file` | GET              | Returns `{ fileName, content }`.                                                                       |
+| `/scripts/save`          | POST             | Body: `{ fileName?, scriptName, scriptContent }`. Always writes `.mjs` files (wraps a default export). |
+| `/scripts/rename`        | POST             | Body: `{ originalFileName, newName }`. Renames file, enforcing a `.mjs` extension.                     |
+| `/scripts/:fileName`     | DELETE           | Removes script.                                                                                        |
+| `/upload-file`           | POST (multipart) | Upload script file.                                                                                    |
+| `/upload-text`           | POST (form)      | Legacy form handler for text-based script creation.                                                    |
+| `/api/:script`           | GET              | Executes `<script>.mjs` default export and returns JSON. (Puppeteer browser is launched at startup.)   |
 
 **Notes**:
 - `ensureDefaultExport` ensures `.mjs` files contain `export default async function handler`.
@@ -81,11 +81,11 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 
 ## Environment / Configuration
 ### `config.yaml` options
-| Option | Default | Purpose |
-| --- | --- | --- |
-| `scripts_dir` | `/config/scripts` | Filesystem location of user scripts (mounted to `/addon_configs/<repo>_scraper/scripts`). |
-| `env_vars` | `{"EXAMPLE_API_KEY": ""}` | Key/value map injected into Node process. Update via Supervisor UI. |
-| `npm_modules` | `[]` | Extra npm packages to install at startup (run via `npm install --no-save`). |
+| Option        | Default                   | Purpose                                                                                   |
+| ------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `scripts_dir` | `/config/scripts`         | Filesystem location of user scripts (mounted to `/addon_configs/<repo>_scraper/scripts`). |
+| `env_vars`    | `{"EXAMPLE_API_KEY": ""}` | Key/value map injected into Node process. Update via Supervisor UI.                       |
+| `npm_modules` | `[]`                      | Extra npm packages to install at startup (run via `npm install --no-save`).               |
 
 ### Environment variables
 - `SCRIPTS_DIR`: target script directory.
@@ -97,7 +97,7 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 ## Puppeteer Execution
 - Browser launched once with headless + safe flags (`--no-sandbox`, etc.).
 - Scripts import dynamic modules via `import(scriptPath + '?cacheBust=...')` to bypass cache.
-- Scripts expected to export `default async function handler(req,res,browser)`.
+- Scripts expected to export `default async function handler(context)` where `context` contains `{ request, response, browser, cheerio }`.
 
 ---
 
@@ -118,14 +118,14 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 ---
 
 ## Common Tasks
-| Task | Where |
-| --- | --- |
-| Update styling | `public/css/style.css` |
-| Modify UI | `views/home.ejs` + `public/js/app.js` |
+| Task                     | Where                                                                  |
+| ------------------------ | ---------------------------------------------------------------------- |
+| Update styling           | `public/css/style.css`                                                 |
+| Modify UI                | `views/home.ejs` + `public/js/app.js`                                  |
 | Adjust script validation | `index.mjs` (functions `ensureDefaultExport`, `getResolvedPath`, etc.) |
-| Add HA option | `config.yaml`, `translations/en.yaml`, `run.sh`, `README.md` |
-| Extend API (server) | `index.mjs` |
-| Modify Docker behavior | `Dockerfile` |
+| Add HA option            | `config.yaml`, `translations/en.yaml`, `run.sh`, `README.md`           |
+| Extend API (server)      | `index.mjs`                                                            |
+| Modify Docker behavior   | `Dockerfile`                                                           |
 
 ---
 

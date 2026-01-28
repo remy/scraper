@@ -1,6 +1,7 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 import multer from 'multer';
+import * as cheerio from 'cheerio';
 import {
   existsSync,
   mkdirSync,
@@ -94,7 +95,8 @@ const escapeHtml = (input = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
-const scriptTemplate = `export default async function handler(req, res, browser) {
+const scriptTemplate = `export default async function handler(context) {
+  const { request, response, browser, cheerio } = context;
   const page = await browser.newPage();
   await page.goto('https://example.com');
 
@@ -352,7 +354,7 @@ const ensureDefaultExport = (content = '') => {
 
   const trimmed = content.trim();
   if (!trimmed) {
-    return `export default async function handler(req, res, browser) {
+    return `export default async function handler(context) {
   // TODO: add your scraping logic here
   return {};
 }
@@ -364,7 +366,7 @@ const ensureDefaultExport = (content = '') => {
     .map((line) => `  ${line}`)
     .join('\n');
 
-  return `export default async function handler(req, res, browser) {
+  return `export default async function handler(context) {
 ${indented}
 }
 `;
@@ -721,7 +723,8 @@ app.use('/api/:scriptName', async (req, res) => {
       );
     }
 
-    const result = await handler(req, res, browser);
+    const context = { request: req, response: res, browser, cheerio };
+    const result = await handler(context);
     const durationMs = Date.now() - startTime;
 
     await writeEndpointLog(safeScriptName, {
