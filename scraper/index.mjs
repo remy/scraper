@@ -407,6 +407,7 @@ const upload = multer({ storage });
 const browser = await puppeteer.launch({
   headless: true,
   args: [
+    '--disable-features=FedCm',
     '--no-sandbox',
     '--disable-setuid-sandbox',
     '--disable-dev-shm-usage',
