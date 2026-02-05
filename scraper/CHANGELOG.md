@@ -1,3 +1,12 @@
+## 2.1.0
+
+- **New**: Added built-in Home Assistant API client in `context.hass`
+  - `getState(entityId)` - Get entity state and attributes
+  - `setState(entityId, state, attributes)` - Set entity state
+  - `getStates()` - Get all entity states
+  - `callService(domain, service, serviceData)` - Call Home Assistant services
+  - `getConfig()` - Get Home Assistant configuration
+
 ## 2.0.1
 
 - **Fix**: Correct auto-inserted function signature to use new context object format (`request`, `response`, `browser`, `cheerio`)

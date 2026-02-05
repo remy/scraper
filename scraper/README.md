@@ -39,11 +39,52 @@ The Express app watches `SCRIPTS_DIR` (defaults to `/config/scripts` inside Home
 
 ## Scripts
 
-There's an "Insert Template" feature. Each `.mjs` file should `export default async function handler(req, res, browser)`, though legacy scripts with `export async function run` are still supported. The handler is invoked with three arguments and whatever you return will be serialized as the API response:
+There's an "Insert Template" feature. Each `.mjs` file should `export default async function handler(context)`. The handler is invoked with a context object containing:
 
-- request - the full (node) request object
-- response - an Express based response API - possibly only use for headers
-- browser - an instance of Chrome, which you can call `await browser.newPage()`
+- `request` - the full (node) request object
+- `response` - an Express based response API
+- `browser` - an instance of Chrome, which you can call `await browser.newPage()`
+- `cheerio` - HTML parsing library for parsing and traversing DOM
+- `hass` (optional) - Home Assistant API client for state management and service calls (only available when running in Home Assistant with `SUPERVISOR_TOKEN`)
+
+### Home Assistant Integration
+
+When running inside Home Assistant, the context includes a `hass` object for interacting with Home Assistant:
+
+```javascript
+export default async function handler(context) {
+  const { hass } = context;
+
+  // Get entity state
+  const lightState = await hass.getState('light.living_room');
+
+  // Set entity state with attributes
+  await hass.setState('sensor.temperature', '22.5', {
+    unit_of_measurement: '°C'
+  });
+
+  // Call a service
+  await hass.callService('light', 'turn_on', {
+    entity_id: 'light.living_room',
+    brightness: 255
+  });
+
+  // Get all entity states
+  const allStates = await hass.getStates();
+
+  // Get Home Assistant configuration
+  const config = await hass.getConfig();
+
+  return { success: true };
+}
+```
+
+The `hass` object provides these methods:
+- `getState(entityId)` - Get the current state and attributes of an entity
+- `setState(entityId, state, attributes)` - Set entity state and optional attributes
+- `getStates()` - Get all entity states
+- `callService(domain, service, serviceData)` - Call any Home Assistant service
+- `getConfig()` - Get Home Assistant configuration
 
 ## Local add-on testing
 

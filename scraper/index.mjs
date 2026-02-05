@@ -16,6 +16,7 @@ import { spawnSync } from 'child_process';
 import { format } from 'util';
 import { fileURLToPath, pathToFileURL } from 'url';
 import ejs from 'ejs';
+import createHomeAssistantAPI from './hass.mjs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -743,6 +744,12 @@ app.use('/api/:scriptName', async (req, res) => {
     }
 
     const context = { request: req, response: res, browser, cheerio };
+
+    // Add Home Assistant API client to context if token is available
+    if (process.env.SUPERVISOR_TOKEN) {
+      context.hass = createHomeAssistantAPI(process.env.SUPERVISOR_TOKEN);
+    }
+
     const result = await handler(context);
     const durationMs = Date.now() - startTime;
 

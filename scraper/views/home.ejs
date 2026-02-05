@@ -48,13 +48,21 @@
 
         <div class="help-section" id="helpSection">
           <p><strong>Getting started:</strong> Scripts are Node.js modules that receive a context object with
-            <code>request</code>, <code>response</code>, <code>browser</code>, and <code>cheerio</code> in the default
-            export. Use the browser to automate web tasks with Puppeteer, or parse HTML with Cheerio.
+            <code>request</code>, <code>response</code>, <code>browser</code>, <code>cheerio</code>, and
+            <code>hass</code> in the default
+            export. Use the browser to automate web tasks with Puppeteer, parse HTML with Cheerio, or interact with Home
+            Assistant.
           </p>
           <p><strong>Upload or create:</strong> Drag a script file above, or use the <strong>Editor</strong> tab to
             write and save scripts. See example scripts in the repo: <a
               href="https://github.com/remy/scraper/tree/main/scraper/example-scripts"
               target="_blank">example-scripts</a> directory for browser and Cheerio examples.</p>
+          <p><strong>Home Assistant integration:</strong> When running in Home Assistant, the context includes a
+            <code>hass</code> object with methods for state management:
+            <code>getState(entityId)</code>, <code>setState(entityId, state, attributes)</code>,
+            <code>getStates()</code>,
+            <code>callService(domain, service, serviceData)</code>, and <code>getConfig()</code>.
+          </p>
         </div>
 
         <div class="modal hidden" id="confirmModal" role="dialog" aria-modal="true">
