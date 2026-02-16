@@ -2,7 +2,7 @@
  * Home Assistant API client
  * Provides methods to interact with Home Assistant state and service APIs
  */
-class HomeAssistantAPI {
+export class HomeAssistantAPI {
   constructor(token) {
     this.token = token;
     this.baseUrl = 'http://supervisor/core/api';

@@ -8,23 +8,24 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 - Provide a UI and API for uploading, editing, and executing custom Puppeteer scripts inside Home Assistant.
 - Scripts live under `/config/scripts` (maps to `/addon_configs/<repo>_scraper/scripts` in HA).
 - `/api/<script>` dynamically loads `<script>.mjs`, calls its default export (an async function receiving a `context` object with `{ request, response, browser, cheerio }`) and returns JSON.
+- Scripts can optionally export a `cron` schedule string to run automatically at specified intervals.
 - UI runs inside Home Assistant's ingress (so routing accommodates `X-Ingress-Path`).
 
 ---
 
 ## Key Components
-| Path                         | Description                                                                                                           |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `index.mjs`                  | Express application: ingress handling, CodeMirror UI template, script CRUD endpoints, Puppeteer runner.               |
-| `views/home.ejs`             | HTML template rendered at `/`. References static CSS/JS and includes template data.                                   |
-| `public/css/style.css`       | Styling for light/dark modes, layout, modal, etc.                                                                     |
-| `public/js/app.js`           | Client-side logic: mode switching, CodeMirror editor, rename/delete modal, list refresh, etc.                         |
-| `config.yaml` / `build.yaml` | Home Assistant add-on metadata (name, ingress, env-vars, architecture, etc.).                                         |
-| `run.sh`                     | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`, installs user `npm_modules`. |
-| `Dockerfile`                 | Node + Chromium + `run.sh`, optimized for HA base images.                                                             |
-| `scripts/*.mjs`              | Example Puppeteer scripts (copied to `/config/scripts` on first run).                                                 |
-| `public/`                    | Static assets served by Express (CSS, JS, fonts).                                                                     |
-| `translations/`              | Supervisor UI translations (configuration options, port descriptions).                                                |
+| Path                         | Description                                                                                                             |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `index.mjs`                  | Express application: ingress handling, CodeMirror UI template, script CRUD endpoints, Puppeteer runner, cron scheduler. |
+| `views/home.ejs`             | HTML template rendered at `/`. References static CSS/JS and includes template data.                                     |
+| `public/css/style.css`       | Styling for light/dark modes, layout, modal, etc.                                                                       |
+| `public/js/app.js`           | Client-side logic: mode switching, CodeMirror editor, rename/delete modal, list refresh, etc.                           |
+| `config.yaml` / `build.yaml` | Home Assistant add-on metadata (name, ingress, env-vars, architecture, etc.).                                           |
+| `run.sh`                     | Add-on entry script: reads `/data/options.json`, mounts scripts dir, exports `env_vars`, installs user `npm_modules`.   |
+| `Dockerfile`                 | Node + Chromium + `run.sh`, optimized for HA base images.                                                               |
+| `scripts/*.mjs`              | Example Puppeteer scripts (copied to `/config/scripts` on first run).                                                   |
+| `public/`                    | Static assets served by Express (CSS, JS, fonts).                                                                       |
+| `translations/`              | Supervisor UI translations (configuration options, port descriptions).                                                  |
 
 ---
 
@@ -97,7 +98,31 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 ## Puppeteer Execution
 - Browser launched once with headless + safe flags (`--no-sandbox`, etc.).
 - Scripts import dynamic modules via `import(scriptPath + '?cacheBust=...')` to bypass cache.
-- Scripts expected to export `default async function handler(context)` where `context` contains `{ request, response, browser, cheerio }`.
+- Scripts expected to export `default async function handler(context)` where `context` contains `{ request, response, browser, cheerio }` (for manual API calls) or `{ browser, cheerio, isScheduled: true }` (for scheduled runs).
+
+---
+
+## Cron Scheduler
+- Uses `node-cron` library (already in dependencies).
+- At startup, `initializeScheduler()` scans all `.mjs` files in `SCRIPTS_DIR`.
+- For each script, dynamically imports to check for `export const cron = "<expression>"`.
+- Valid cron expressions are registered with `cron.schedule()` to execute scripts automatically.
+- Active cron tasks are stored in `activeCronTasks` Map for lifecycle management.
+- Scheduled execution uses `executeScheduledScript()` which:
+  - Builds context without `request`/`response` (set `isScheduled: true` instead).
+  - Reuses existing logging infrastructure (`writeEndpointLog`).
+  - Handles errors gracefully (logs and continues, doesn't disable schedule).
+  - Closes browser pages after execution to prevent memory leaks.
+- Scheduler initializes after browser launch but before Express server starts.
+- Invalid cron expressions log warnings but don't crash the add-on.
+- **File Watcher**: Uses Node.js `fs.watch()` to monitor `SCRIPTS_DIR` for changes.
+- **Debouncing**: When file changes are detected, waits 60 seconds after the last change before reloading.
+- **Dynamic Reloading**: Automatically stops all existing scheduled tasks and re-scans scripts.
+- **Logging**: All watcher events, reloads, and task lifecycle changes are logged with `[SCHEDULER]` prefix.
+- The debounce mechanism prevents excessive reloads during rapid file edits (e.g., saving multiple times).
+- **Execution Queue**: Scripts are queued to prevent concurrent Puppeteer access.
+- **Concurrency Control**: Only one script executes at a time, additional requests are queued (FIFO).
+- **Queue Logging**: Position, wait times, and queue depth are logged with `[QUEUE]` prefix.
 
 ---
 
@@ -113,7 +138,7 @@ This repository powers a Home Assistant add-on for running Puppeteer-based scrip
 - **New script actions**: Add button in UI, implement server endpoint, update `public/js/app.js`.
 - **Logs/testing**: Consider adding script-run logs or “Test API” button showing result inline.
 - **Auth/headers**: Extend `/api/:script` to pass extra headers/per-request context as needed.
-- **Scheduler**: Could integrate with HA services or add a scheduler (not currently implemented).
+- **Scheduler**: Implemented via `node-cron`. Scripts export `const cron = "<expression>"` for automatic execution. See scheduler section above for details.
 
 ---
 

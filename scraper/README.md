@@ -46,6 +46,80 @@ There's an "Insert Template" feature. Each `.mjs` file should `export default as
 - `browser` - an instance of Chrome, which you can call `await browser.newPage()`
 - `cheerio` - HTML parsing library for parsing and traversing DOM
 - `hass` (optional) - Home Assistant API client for state management and service calls (only available when running in Home Assistant with `SUPERVISOR_TOKEN`)
+- `isScheduled` - boolean flag indicating if the script is running on a schedule (true) or manually via API (false)
+
+### Automatic Scheduling with Cron
+
+Scripts can run automatically on a schedule by exporting a `cron` variable. When the add-on starts, it scans all scripts and registers any with a cron schedule.
+
+**Basic Example:**
+
+```javascript
+// Run this script every 6 hours
+export const cron = "0 */6 * * *";
+
+export default async function handler(context) {
+  const { browser, isScheduled } = context;
+
+  // Note: request and response are undefined when running on schedule
+  if (isScheduled) {
+    console.log("Running on schedule");
+  }
+
+  // Your scraping logic here
+  return { success: true };
+}
+```
+
+**Cron Expression Format:**
+
+The cron format is: `minute hour day month weekday`
+
+| Field        | Values                 | Special Characters |
+| ------------ | ---------------------- | ------------------ |
+| Minute       | 0-59                   | `*` `,` `-` `/`    |
+| Hour         | 0-23                   | `*` `,` `-` `/`    |
+| Day of Month | 1-31                   | `*` `,` `-` `/`    |
+| Month        | 1-12                   | `*` `,` `-` `/`    |
+| Day of Week  | 0-7 (0 or 7 is Sunday) | `*` `,` `-` `/`    |
+
+**Common Patterns:**
+
+```javascript
+// Every 15 minutes
+export const cron = "*/15 * * * *";
+
+// Every hour at minute 0
+export const cron = "0 * * * *";
+
+// Daily at midnight
+export const cron = "0 0 * * *";
+
+// Daily at 9am
+export const cron = "0 9 * * *";
+
+// Every 6 hours
+export const cron = "0 */6 * * *";
+
+// 9am and 5pm on weekdays (Mon-Fri)
+export const cron = "0 9,17 * * 1-5";
+
+// Once a week on Sunday at midnight
+export const cron = "0 0 * * 0";
+```
+
+**Important Notes:**
+- Scheduling is completely optional—scripts work normally via `/api/<script>` whether or not they have a schedule
+- When running on schedule, `context.request` and `context.response` are `undefined`
+- Use `context.isScheduled` to detect scheduled vs manual execution
+- Invalid cron expressions are logged as warnings but won't crash the add-on
+- The add-on automatically watches for file changes and reloads schedules after 60 seconds of inactivity
+- When you create, edit, rename, or delete scripts, the scheduler will automatically detect changes and reload
+- The 60-second delay prevents excessive reloads if you're making multiple edits in quick succession
+- Scheduled runs are logged just like manual executions and appear in the UI
+- **Concurrency Protection**: Only one script executes at a time to prevent Puppeteer conflicts
+- If multiple scripts try to run simultaneously (e.g., two schedules trigger at the same time, or manual API call during scheduled run), they are automatically queued and executed sequentially
+- Queue position and wait times are logged for visibility
 
 ### Home Assistant Integration
 

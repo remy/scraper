@@ -1,3 +1,26 @@
+## 2.2.0
+
+- **New**: Automatic cron-based script scheduling
+  - Scripts can export `export const cron = "<expression>"` to run automatically
+  - Cron format: `minute hour day month weekday` (e.g., `"0 */6 * * *"` for every 6 hours)
+  - Scheduled runs receive `context.isScheduled: true` (no `request`/`response` objects)
+  - All cron expressions validated at startup and logged
+- **New**: Automatic schedule reloading with file watcher
+  - Monitors script directory for changes (add, edit, delete, rename)
+  - Debounces reloads with 60-second grace period to avoid excessive reloads during rapid edits
+  - Gracefully stops old tasks and registers new schedules
+- **New**: Execution queue for concurrent access control
+  - Prevents Puppeteer conflicts by limiting to one script execution at a time
+  - Multiple requests automatically queued (FIFO) with position and wait time logging
+  - Both scheduled and manual API calls use the same queue
+- **New**: Graceful shutdown handling
+  - Proper cleanup of cron tasks, file watcher, execution queue on process termination (SIGTERM/SIGINT)
+  - Handles uncaught exceptions with full resource cleanup
+  - All shutdown events logged with `[SCHEDULER]` prefix
+- **Improved**: File existence validation before scheduled script execution
+- **Improved**: Concurrent reload protection to prevent multiple simultaneous reloads
+- **Improved**: Comprehensive logging for queue, scheduler, and shutdown events with `[QUEUE]` and `[SCHEDULER]` prefixes
+
 ## 2.1.0
 
 - **New**: Added built-in Home Assistant API client in `context.hass`

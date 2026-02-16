@@ -16,6 +16,7 @@
     "homeassistant": "^0.2.0",
     "js-yaml": "^4.1.0",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "puppeteer": "^23.3.0"
   },
   "devDependencies": {

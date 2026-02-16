@@ -3,12 +3,14 @@ import puppeteer from 'puppeteer';
 import multer from 'multer';
 import * as cheerio from 'cheerio';
 import yaml from 'js-yaml';
+import cron from 'node-cron';
 import {
   existsSync,
   mkdirSync,
   readdirSync,
   copyFileSync,
   readFileSync,
+  watch,
 } from 'fs';
 import { promises as fsPromises } from 'fs';
 import { join, dirname, resolve, basename } from 'path';
@@ -245,8 +247,8 @@ const filterStackTrace = (stack = '', scriptPath = '') => {
     fallbackFrames.length > 0
       ? fallbackFrames
       : scriptPath
-      ? [`    at ${scriptPath}`]
-      : lines;
+        ? [`    at ${scriptPath}`]
+        : lines;
 
   const cleanedFrames = framesToUse.map((line) => stripQuery(line));
   return [header, ...cleanedFrames].join('\n').trim();
@@ -420,6 +422,12 @@ const browser = await puppeteer.launch({
   ],
 });
 
+// Initialize cron scheduler after browser is ready
+await initializeScheduler();
+
+// Watch scripts directory for changes and reload scheduler when needed
+watchScriptsDirectory();
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
@@ -460,6 +468,424 @@ const getScripts = () =>
     .map((entry) => entry.name)
     .filter((_) => _.startsWith('.') === false)
     .sort();
+
+// Store active cron tasks so we can destroy them when re-initializing
+const activeCronTasks = new Map();
+
+// Debounce timer for scheduler reinitialization
+let schedulerReinitTimer = null;
+
+// File watcher reference for cleanup
+let scriptsWatcher = null;
+
+// Flag to prevent concurrent reloads
+let isReloadInProgress = false;
+
+// Execution queue for Puppeteer access control
+const executionQueue = [];
+let isExecutingScript = false;
+
+/**
+ * Queue system for script executions to prevent concurrent Puppeteer access
+ */
+async function queueScriptExecution(executionFn, scriptName) {
+  return new Promise((resolve, reject) => {
+    const queueItem = {
+      executionFn,
+      resolve,
+      reject,
+      scriptName,
+      queuedAt: Date.now(),
+    };
+
+    executionQueue.push(queueItem);
+    const queuePosition = executionQueue.length;
+
+    if (queuePosition > 1) {
+      console.log(
+        `[QUEUE] ${scriptName} queued at position ${queuePosition} (${queuePosition - 1} ahead)`
+      );
+    }
+
+    processExecutionQueue();
+  });
+}
+
+/**
+ * Process the execution queue one script at a time
+ */
+async function processExecutionQueue() {
+  if (isExecutingScript || executionQueue.length === 0) {
+    return;
+  }
+
+  isExecutingScript = true;
+  const queueItem = executionQueue.shift();
+  const waitTime = Date.now() - queueItem.queuedAt;
+
+  if (waitTime > 100) {
+    console.log(
+      `[QUEUE] ${queueItem.scriptName} starting (waited ${waitTime}ms in queue)`
+    );
+  }
+
+  try {
+    const result = await queueItem.executionFn();
+    queueItem.resolve(result);
+  } catch (error) {
+    queueItem.reject(error);
+  } finally {
+    isExecutingScript = false;
+
+    // Log remaining queue size
+    if (executionQueue.length > 0) {
+      console.log(
+        `[QUEUE] ${executionQueue.length} script(s) waiting in queue`
+      );
+    }
+
+    // Process next item in queue
+    if (executionQueue.length > 0) {
+      setImmediate(() => processExecutionQueue());
+    }
+  }
+}
+
+/**
+ * Core script execution logic shared by both scheduled and manual runs
+ */
+async function executeScriptCore(
+  scriptPath,
+  scriptName,
+  context,
+  isScheduled = false
+) {
+  const startTime = Date.now();
+  const { logs, restore } = captureConsoleLogs();
+
+  let callerStackStage = 0;
+  let result = null;
+
+  try {
+    const scriptUrl = pathToFileURL(scriptPath);
+    scriptUrl.searchParams.set('cacheBust', Date.now().toString());
+    callerStackStage = 1;
+    const scriptModule = await import(scriptUrl.href);
+    callerStackStage = 2;
+    const handler =
+      typeof scriptModule?.default === 'function'
+        ? scriptModule.default
+        : typeof scriptModule?.run === 'function'
+          ? scriptModule.run
+          : null;
+
+    if (!handler) {
+      throw new Error(
+        'Script must export a default async function (or legacy run function).'
+      );
+    }
+
+    result = await handler(context);
+    const durationMs = Date.now() - startTime;
+
+    await writeEndpointLog(scriptName, {
+      success: true,
+      durationMs,
+      result: toSerializable(result),
+      logs,
+      scheduled: isScheduled,
+    });
+
+    const prefix = isScheduled ? '[SCHEDULED]' : '';
+    console.log(`${prefix} ${scriptName} completed in ${durationMs}ms`.trim());
+
+    return { success: true, result, durationMs, logs };
+  } catch (error) {
+    const durationMs = Date.now() - startTime;
+    const prefix = isScheduled ? '[SCHEDULED]' : '';
+
+    if (callerStackStage === 0) {
+      console.error(
+        `${prefix} ${scriptName} - Failed to read script: ${error.message}`.trim()
+      );
+    } else if (callerStackStage === 1) {
+      console.error(
+        `${prefix} ${scriptName} - Failed to parse script: ${error.message}`.trim()
+      );
+
+      const syntaxErr = checkSyntax(scriptPath);
+      if (syntaxErr) {
+        console.error(syntaxErr.stack);
+        error = syntaxErr;
+      }
+    } else if (callerStackStage === 2) {
+      console.error(
+        `${prefix} ${scriptName} - Error:`.trim(),
+        serializeError(error, scriptPath).stack
+      );
+    }
+
+    await writeEndpointLog(scriptName, {
+      success: false,
+      durationMs,
+      error: serializeError(error, scriptPath),
+      logs,
+      scheduled: isScheduled,
+    });
+
+    throw error;
+  } finally {
+    // Before restore, ensure that all browser pages are closed
+    const pages = await browser.pages();
+    await Promise.all(
+      pages.map(async (page) => {
+        try {
+          if (!page.isClosed()) {
+            await page.close();
+          }
+        } catch {
+          // nothing
+        }
+      })
+    );
+    restore();
+  }
+}
+
+/**
+ * Execute a script in scheduled mode (without HTTP request/response)
+ */
+async function executeScheduledScript(scriptPath, scriptName) {
+  // Check if file still exists before attempting execution
+  if (!existsSync(scriptPath)) {
+    console.warn(
+      `[SCHEDULED] ${scriptName} - File no longer exists at ${scriptPath}, skipping execution`
+    );
+    return;
+  }
+
+  // Queue the execution to prevent concurrent Puppeteer access
+  return queueScriptExecution(async () => {
+    const context = { browser, cheerio, isScheduled: true };
+
+    // Add Home Assistant API client to context if token is available
+    if (process.env.SUPERVISOR_TOKEN) {
+      context.hass = createHomeAssistantAPI(process.env.SUPERVISOR_TOKEN);
+    }
+
+    return await executeScriptCore(scriptPath, scriptName, context, true);
+  }, scriptName);
+}
+
+/**
+ * Destroy all active cron tasks
+ */
+function destroyAllScheduledTasks() {
+  if (activeCronTasks.size === 0) {
+    return;
+  }
+
+  console.log(
+    `[SCHEDULER] Destroying ${activeCronTasks.size} active scheduled task(s)`
+  );
+  for (const [scriptName, task] of activeCronTasks.entries()) {
+    try {
+      task.stop();
+      console.log(`[SCHEDULER] Stopped task for ${scriptName}`);
+    } catch (error) {
+      console.error(
+        `[SCHEDULER] Error stopping task for ${scriptName}:`,
+        error.message
+      );
+    }
+  }
+  activeCronTasks.clear();
+}
+
+/**
+ * Initialize the cron scheduler by scanning all scripts and registering schedules
+ */
+async function initializeScheduler(isReload = false) {
+  // Prevent concurrent reloads
+  if (isReloadInProgress) {
+    console.warn('[SCHEDULER] Reload already in progress, skipping...');
+    return;
+  }
+
+  isReloadInProgress = true;
+
+  try {
+    if (isReload) {
+      console.log('[SCHEDULER] Reloading scheduler due to file changes...');
+      destroyAllScheduledTasks();
+    } else {
+      console.log('[SCHEDULER] Initializing cron scheduler...');
+    }
+
+    const scripts = getScripts();
+    let scheduledCount = 0;
+
+    for (const scriptFile of scripts) {
+      try {
+        const { resolvedPath, safeName } = getResolvedPath(scriptFile);
+        const scriptPath = resolvedPath;
+        const scriptName = trimScriptExtension(safeName);
+
+        // Import script to check for cron export
+        const scriptUrl = pathToFileURL(scriptPath);
+        scriptUrl.searchParams.set('cacheBust', Date.now().toString());
+        const scriptModule = await import(scriptUrl.href);
+
+        // Check if script exports a cron schedule
+        if (scriptModule.cron && typeof scriptModule.cron === 'string') {
+          const cronExpression = scriptModule.cron;
+
+          // Validate cron expression
+          if (!cron.validate(cronExpression)) {
+            console.warn(
+              `[SCHEDULER] Invalid cron expression "${cronExpression}" in ${scriptName}, skipping`
+            );
+            continue;
+          }
+
+          // Schedule the script and store the task
+          const task = cron.schedule(cronExpression, () => {
+            console.log(`[SCHEDULER] Triggering ${scriptName}`);
+            executeScheduledScript(scriptPath, scriptName).catch((err) => {
+              console.error(
+                `[SCHEDULER] Unexpected error running ${scriptName}:`,
+                err
+              );
+            });
+          });
+
+          activeCronTasks.set(scriptName, task);
+          scheduledCount++;
+          console.log(
+            `[SCHEDULER] Scheduled ${scriptName} with cron: ${cronExpression}`
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `[SCHEDULER] Failed to check schedule for ${scriptFile}:`,
+          error.message
+        );
+      }
+    }
+
+    const action = isReload ? 'Reloaded' : 'Initialized';
+    console.log(`[SCHEDULER] ${action} ${scheduledCount} scheduled script(s)`);
+  } finally {
+    isReloadInProgress = false;
+  }
+}
+
+/**
+ * Debounced re-initialization of scheduler
+ * Waits 60 seconds after the last file change before reloading
+ */
+function scheduleSchedulerReload() {
+  // Clear existing timer
+  if (schedulerReinitTimer) {
+    clearTimeout(schedulerReinitTimer);
+    console.log(
+      '[SCHEDULER] Previous reload timer cancelled, resetting 60-second countdown...'
+    );
+  }
+
+  console.log(
+    '[SCHEDULER] File change detected, will reload in 60 seconds if no more changes...'
+  );
+
+  // Set new timer for 60 seconds
+  schedulerReinitTimer = setTimeout(async () => {
+    schedulerReinitTimer = null;
+    try {
+      await initializeScheduler(true);
+    } catch (error) {
+      console.error('[SCHEDULER] Error during reload:', error);
+    }
+  }, 60000); // 60 seconds
+}
+
+/**
+ * Watch the scripts directory for changes and reload scheduler
+ */
+function watchScriptsDirectory() {
+  try {
+    scriptsWatcher = watch(
+      SCRIPTS_DIR,
+      { persistent: true },
+      (eventType, filename) => {
+        if (!filename) {
+          return;
+        }
+
+        // Only watch .mjs files
+        if (!filename.endsWith(SCRIPT_EXTENSION)) {
+          return;
+        }
+
+        // Ignore hidden files
+        if (filename.startsWith('.')) {
+          return;
+        }
+
+        console.log(`[SCHEDULER] File ${eventType}: ${filename}`);
+        scheduleSchedulerReload();
+      }
+    );
+
+    scriptsWatcher.on('error', (error) => {
+      console.error('[SCHEDULER] File watcher error:', error);
+    });
+
+    console.log(`[SCHEDULER] Watching ${SCRIPTS_DIR} for changes...`);
+  } catch (error) {
+    console.error('[SCHEDULER] Failed to start file watcher:', error);
+  }
+}
+
+/**
+ * Cleanup function for graceful shutdown
+ */
+function cleanupScheduler() {
+  console.log('[SCHEDULER] Shutting down...');
+
+  // Clear pending reload timer
+  if (schedulerReinitTimer) {
+    clearTimeout(schedulerReinitTimer);
+    schedulerReinitTimer = null;
+    console.log('[SCHEDULER] Cancelled pending reload timer');
+  }
+
+  // Clear execution queue
+  if (executionQueue.length > 0) {
+    console.log(
+      `[SCHEDULER] Clearing ${executionQueue.length} queued script(s)`
+    );
+    executionQueue.forEach((item) => {
+      item.reject(new Error('Shutdown in progress'));
+    });
+    executionQueue.length = 0;
+  }
+
+  // Stop all scheduled tasks
+  destroyAllScheduledTasks();
+
+  // Close file watcher
+  if (scriptsWatcher) {
+    try {
+      scriptsWatcher.close();
+      console.log('[SCHEDULER] File watcher closed');
+    } catch (error) {
+      console.error('[SCHEDULER] Error closing file watcher:', error);
+    }
+    scriptsWatcher = null;
+  }
+
+  console.log('[SCHEDULER] Shutdown complete');
+}
 
 app.get('/', async (req, res) => {
   const message = req.query.message
@@ -721,96 +1147,57 @@ app.use('/api/:scriptName', async (req, res) => {
     return res.status(404).json({ error: 'Script not found' });
   }
 
-  const startTime = Date.now();
-  const { logs, restore } = captureConsoleLogs();
-
-  let callerStackStage = 0;
   try {
-    const scriptUrl = pathToFileURL(scriptPath);
-    scriptUrl.searchParams.set('cacheBust', Date.now().toString());
-    callerStackStage = 1;
-    const scriptModule = await import(scriptUrl.href);
-    callerStackStage = 2;
-    const handler =
-      typeof scriptModule?.default === 'function'
-        ? scriptModule.default
-        : typeof scriptModule?.run === 'function'
-        ? scriptModule.run
-        : null;
+    // Queue the execution to prevent concurrent Puppeteer access
+    const result = await queueScriptExecution(async () => {
+      const context = {
+        request: req,
+        response: res,
+        browser,
+        cheerio,
+        isScheduled: false,
+      };
 
-    if (!handler) {
-      throw new Error(
-        'Script must export a default async function (or legacy run function).'
-      );
-    }
-
-    const context = { request: req, response: res, browser, cheerio };
-
-    // Add Home Assistant API client to context if token is available
-    if (process.env.SUPERVISOR_TOKEN) {
-      context.hass = createHomeAssistantAPI(process.env.SUPERVISOR_TOKEN);
-    }
-
-    const result = await handler(context);
-    const durationMs = Date.now() - startTime;
-
-    await writeEndpointLog(safeScriptName, {
-      success: true,
-      durationMs,
-      result: toSerializable(result),
-      logs,
-    });
-
-    // console.log(`result: ${JSON.stringify(result)}`);
-    res.json(result);
-  } catch (error) {
-    const durationMs = Date.now() - startTime;
-
-    if (callerStackStage === 0) {
-      console.error(`Failed to read script from file system: ${error.message}`);
-    } else if (callerStackStage === 1) {
-      console.error(`Failed to parse script for import: ${error.message}`);
-
-      const syntaxErr = checkSyntax(scriptPath);
-      if (syntaxErr) {
-        // This will print the "pretty" V8 error with the ^ pointer
-        console.error(syntaxErr.stack);
-        error = syntaxErr;
-      } else {
-        console.error(
-          "The error occurred during import but isn't a simple syntax error (Check for missing files or network issues)."
-        );
+      // Add Home Assistant API client to context if token is available
+      if (process.env.SUPERVISOR_TOKEN) {
+        context.hass = createHomeAssistantAPI(process.env.SUPERVISOR_TOKEN);
       }
-    } else if (callerStackStage === 2) {
-      console.error(serializeError(error, scriptPath).stack);
-    }
 
-    await writeEndpointLog(safeScriptName, {
-      success: false,
-      durationMs,
-      error: serializeError(error, scriptPath),
-      logs,
-    });
+      return await executeScriptCore(
+        scriptPath,
+        safeScriptName,
+        context,
+        false
+      );
+    }, safeScriptName);
 
+    res.json(result.result);
+  } catch (error) {
     res.status(500).json({ error: 'Error executing script' });
-  } finally {
-    // Before restore, also ensure that all browser pages are closed
-    const pages = await browser.pages();
-    await Promise.all(
-      pages.map(async (page) => {
-        try {
-          if (!page.isClosed()) {
-            await page.close();
-          }
-        } catch {
-          // nothing
-        }
-      })
-    );
-    restore();
   }
 });
 
 app.listen(PORT, () => {
   console.log(`API running on port ${PORT} @ ${new Date().toISOString()}`);
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  cleanupScheduler();
+  await browser.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  cleanupScheduler();
+  await browser.close();
+  process.exit(0);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  cleanupScheduler();
+  process.exit(1);
 });
