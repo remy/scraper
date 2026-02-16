@@ -1,3 +1,7 @@
+## 2.2.1
+
+- **Fix** - variables being accessed before init 🤦
+
 ## 2.2.0
 
 - **New**: Automatic cron-based script scheduling

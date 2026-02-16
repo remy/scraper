@@ -30,6 +30,22 @@ const VIEWS_DIR = join(__dirname, 'views');
 const SCRIPT_EXTENSION = '.mjs';
 const LOGS_DIR = join(__dirname, 'logs');
 
+// Store active cron tasks so we can destroy them when re-initializing
+const activeCronTasks = new Map();
+
+// Debounce timer for scheduler reinitialization
+let schedulerReinitTimer = null;
+
+// File watcher reference for cleanup
+let scriptsWatcher = null;
+
+// Flag to prevent concurrent reloads
+let isReloadInProgress = false;
+
+// Execution queue for Puppeteer access control
+const executionQueue = [];
+let isExecutingScript = false;
+
 // Read version from config.yaml for cache busting
 let APP_VERSION = '1.0.0';
 if (process.env.NODE_ENV === 'development') {
@@ -432,7 +448,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
-const getIngressPath = (req) => {
+function getIngressPath(req) {
   const ingressPath = req.headers['x-ingress-path'];
   if (!ingressPath) {
     return '';
@@ -444,9 +460,9 @@ const getIngressPath = (req) => {
   }
 
   return path;
-};
+}
 
-const withIngressPath = (req, targetPath = '/') => {
+function withIngressPath(req, targetPath = '/') {
   const normalizedPath = targetPath.startsWith('/')
     ? targetPath
     : `/${targetPath}`;
@@ -456,36 +472,21 @@ const withIngressPath = (req, targetPath = '/') => {
   }
 
   return `${ingressPath}${normalizedPath}`;
-};
+}
 
-const getBaseHref = (req) => {
+function getBaseHref(req) {
   const ingressPath = getIngressPath(req);
   return ingressPath ? `${ingressPath}/` : '/';
-};
+}
 
-const getScripts = () =>
-  readFileEntries(SCRIPTS_DIR)
+function getScripts() {
+  return readFileEntries(SCRIPTS_DIR)
     .map((entry) => entry.name)
     .filter((_) => _.startsWith('.') === false)
     .sort();
+}
 
-// Store active cron tasks so we can destroy them when re-initializing
-const activeCronTasks = new Map();
-
-// Debounce timer for scheduler reinitialization
-let schedulerReinitTimer = null;
-
-// File watcher reference for cleanup
-let scriptsWatcher = null;
-
-// Flag to prevent concurrent reloads
-let isReloadInProgress = false;
-
-// Execution queue for Puppeteer access control
-const executionQueue = [];
-let isExecutingScript = false;
-
-/**
+/*
  * Queue system for script executions to prevent concurrent Puppeteer access
  */
 async function queueScriptExecution(executionFn, scriptName) {
