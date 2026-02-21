@@ -65,14 +65,14 @@ class ImmichCamera(Camera):
         self._rotation_unsubscribe = None
 
         endpoint_label = API_ENDPOINTS.get(
-            config_entry.data.get(CONF_API_ENDPOINT, ""), "Immich"
+            config_entry.data.get(CONF_API_ENDPOINT, ""), "Immich Picture"
         )
 
-        self._attr_name = f"Immich Slideshow – {endpoint_label}"
+        self._attr_name = f"Immich Picture Slideshow – {endpoint_label}"
         self._attr_unique_id = config_entry.entry_id
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, config_entry.entry_id)},
-            name="Immich",
+            name="Immich Picture",
             manufacturer="Immich",
             model="Photo Server",
             configuration_url=coordinator.host,

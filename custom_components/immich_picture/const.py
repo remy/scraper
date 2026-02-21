@@ -1,6 +1,6 @@
 """Constants for the Immich integration."""
 
-DOMAIN = "immich"
+DOMAIN = "immich_picture"
 
 # Config entry keys
 CONF_API_KEY = "api_key"

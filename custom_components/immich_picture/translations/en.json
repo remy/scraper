@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to Immich",
+        "title": "Connect to Immich Picture",
         "description": "Enter your Immich server address and API key. You can generate an API key in Immich under Account Settings → API Keys.",
         "data": {
           "host": "Immich URL",
@@ -60,7 +60,7 @@
       },
       "intervals": {
         "title": "Timing",
-        "description": "Set how often the displayed photo rotates and how often new photos are fetched from Immich.",
+        "description": "Set how often the displayed photo rotates and how often new photos are fetched from Immich Picture.",
         "data": {
           "rotation_interval": "Photo rotation interval (seconds)",
           "scan_interval": "API refresh interval (seconds)"
@@ -74,13 +74,13 @@
       "invalid_json": "Must be a valid JSON object, e.g. {\"city\": \"Paris\"}"
     },
     "abort": {
-      "already_configured": "This Immich instance is already configured."
+      "already_configured": "This Immich Picture instance is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Immich Options",
+        "title": "Immich Picture Options",
         "data": {
           "rotation_interval": "Photo rotation interval (seconds)",
           "scan_interval": "API refresh interval (seconds)",

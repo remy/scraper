@@ -1,6 +1,6 @@
 {
-  "domain": "immich",
-  "name": "Immich",
+  "domain": "immich_picture",
+  "name": "Immich Picture",
   "config_flow": true,
   "documentation": "https://immich.app",
   "requirements": [],
